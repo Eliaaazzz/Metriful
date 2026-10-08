@@ -1,88 +1,57 @@
 /**
- * useARScale — standard_ar (no-LiDAR) real-world scale via ARKit.
+ * useARScale — capture-time real-world scale from ARKit on devices without LiDAR (standard_ar tier).
  *
- * Bridges to the native `ARScaleModule` (see native-depth-plugin/ios/ARScaleModule.swift): on
- * devices with ARKit but no depth sensor, a horizontal-plane raycast gives the camera-to-table
- * distance, converted to img_w_cm — the SAME scale signal the LiDAR frame-processor emits, so the
- * portion/mass pipeline is unchanged. Tier sits between LiDAR (±1cm) and the plate fallback (±5cm).
+ * Calls the MetrifulLidar module's ARKit plane raycast (modules/metriful-lidar/ios/ArPlaneMeasurer.swift)
+ * once, right after the photo is taken: camera-to-table distance + fx + width → img_w_cm via the same
+ * pinhole formula as the LiDAR path, so the backend scale pipeline is unchanged. Gives scale only;
+ * no volume or per-item geometry (that needs a depth map).
  *
- * Degrades gracefully: if the native module is absent (web, Expo Go, not-yet-built, or Android
- * without the ARCore equivalent) every call resolves to "unsupported" and callers fall back to the
- * plate-reference scale — never a fabricated number.
+ * Falls back cleanly (imgWidthCm = null) on web, Android, Expo Go, or when no plane is found, so the
+ * backend keeps its default plate-width assumption instead of a fabricated one.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { NativeModules, Platform } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { isArPlaneAvailable, measureArPlane, type ArPlaneReading } from '../../modules/metriful-lidar';
+import { estimateImageWidthCm } from '../utils/scale';
 
-interface ARMeasurement {
-  hasScale: boolean;
-  distanceCm?: number;
-  imgWcm?: number | null;
-  fx?: number;
-  trackingState?: string;
+export interface ARScaleResult {
+  /** real-world width of the full frame, cm — feed to backend as img_w_cm */
+  imgWidthCm: number | null;
+  distanceCm: number | null;
+  confidence: number;
+  /** raw native reading for debugging */
+  raw: ArPlaneReading | null;
 }
 
-interface ARScaleNative {
-  isSupported(): Promise<boolean>;
-  start(): Promise<boolean>;
-  stop(): Promise<boolean>;
-  measure(): Promise<ARMeasurement>;
-}
+const EMPTY: ARScaleResult = { imgWidthCm: null, distanceCm: null, confidence: 0, raw: null };
 
-const Native: ARScaleNative | undefined =
-  Platform.OS === 'ios' ? (NativeModules.ARScaleModule as ARScaleNative | undefined) : undefined;
-
-export interface UseARScale {
-  /** Native module present AND device reports ARWorldTracking support. */
-  supported: boolean;
-  /** Latest real-world image width (cm) from a plane raycast, or null until a plane is found. */
-  imgWcm: number | null;
-  /** Begin a brief AR session (call when the standard_ar capture screen mounts). */
-  start: () => Promise<void>;
-  /** End the AR session (call on unmount / after capture) to release the camera. */
-  stop: () => Promise<void>;
-  /** Take a single scale reading; returns img_w_cm or null. */
-  measure: () => Promise<number | null>;
-}
-
-export function useARScale(enabled = true): UseARScale {
-  const [supported, setSupported] = useState(false);
-  const [imgWcm, setImgWcm] = useState<number | null>(null);
-  const started = useRef(false);
+export function useARScale() {
+  const [available, setAvailable] = useState(false);
 
   useEffect(() => {
-    let alive = true;
-    if (enabled && Native?.isSupported) {
-      Native.isSupported().then((s) => { if (alive) setSupported(!!s); }).catch(() => {});
+    setAvailable(isArPlaneAvailable());
+  }, []);
+
+  /** Measure once (≤2.5s). Always resolves, never throws, so it can't break the capture flow. */
+  const measure = useCallback(async (): Promise<ARScaleResult> => {
+    const reading = await measureArPlane();
+    if (!reading.hasScale || reading.distanceCm == null) {
+      return { ...EMPTY, raw: reading };
     }
-    return () => {
-      alive = false;
-      if (started.current) Native?.stop().catch(() => {});
+    const imgWidthCm = estimateImageWidthCm({
+      distanceCm: reading.distanceCm,
+      fxPx: reading.fx ?? null,
+      frameWidthPx: reading.width ?? null,
+      allowFovFallback: false,
+    });
+    return {
+      imgWidthCm,
+      distanceCm: imgWidthCm != null ? reading.distanceCm : null,
+      confidence: imgWidthCm != null ? reading.confidence ?? 0 : 0,
+      raw: reading,
     };
-  }, [enabled]);
-
-  const start = useCallback(async () => {
-    if (!Native || started.current) return;
-    try { await Native.start(); started.current = true; } catch { /* fall back to plate scale */ }
   }, []);
 
-  const stop = useCallback(async () => {
-    if (!Native || !started.current) return;
-    try { await Native.stop(); } finally { started.current = false; }
-  }, []);
-
-  const measure = useCallback(async (): Promise<number | null> => {
-    if (!Native) return null;
-    try {
-      const m = await Native.measure();
-      const v = m.hasScale && typeof m.imgWcm === 'number' && isFinite(m.imgWcm) ? m.imgWcm : null;
-      if (v !== null) setImgWcm(v);
-      return v;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  return { supported, imgWcm, start, stop, measure };
+  return { available, measure };
 }
 
 export default useARScale;

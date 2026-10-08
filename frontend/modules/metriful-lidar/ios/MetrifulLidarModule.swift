@@ -35,6 +35,7 @@ import Vision
 
 public class MetrifulLidarModule: Module {
   private let measurer = LidarMeasurer()
+  private let arMeasurer = ArPlaneMeasurer()
 
   public func definition() -> ModuleDefinition {
     Name("MetrifulLidar")
@@ -47,6 +48,16 @@ public class MetrifulLidarModule: Module {
     // Never rejects — callers fall back to the backend's default plate-width assumption.
     AsyncFunction("measure") { (promise: Promise) in
       self.measurer.measure { result in promise.resolve(result) }
+    }
+
+    // Standard-AR fallback for devices without LiDAR (see ArPlaneMeasurer.swift).
+    Function("isArPlaneAvailable") { () -> Bool in
+      ArPlaneMeasurer.deviceAvailable()
+    }
+
+    // Brief ARKit session → camera-to-table distance + fx, or { hasScale: false }. Never rejects.
+    AsyncFunction("measureArPlane") { (promise: Promise) in
+      self.arMeasurer.measure { result in promise.resolve(result) }
     }
   }
 }

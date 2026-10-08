@@ -87,42 +87,14 @@ meters), and read `LENS_INTRINSIC_CALIBRATION` for `fx`. Register via
 
 ---
 
-# `ARScaleModule` — standard_ar (no-LiDAR) scale source
+# ARKit scale (standard_ar, no LiDAR) — moved
 
-For the **`standard_ar` tier** (`useDeviceCapabilities`): devices with ARKit but **no** depth
-sensor (most non-Pro iPhones, ARCore Androids). Instead of a depth map, it raycasts the center of
-the frame to a detected **horizontal plane** (the table) and returns the camera-to-plane distance →
-`img_w_cm` via the same pinhole formula. This slots between LiDAR (±1cm) and the plate-reference
-fallback (±5cm), at ≈±3cm.
+The ARKit plane-raycast scale source is no longer a template here. It ships inside the autolinked
+Expo module: `modules/metriful-lidar/ios/ArPlaneMeasurer.swift`, exposed as
+`isArPlaneAvailable()` / `measureArPlane()` and consumed by `src/hooks/useARScale.ts`.
 
-```
-no depth sensor + ARKit ──▶ ARScaleModule.measure()  ← THIS MODULE (native)
-                            └▶ useARScale (imgWcm)
-                               └▶ ReviewMealScreen → img_w_cm  (same path as LiDAR)
-```
-
-Files: `ios/ARScaleModule.swift` + `ios/ARScaleModule.m`. JS: `src/hooks/useARScale.ts`
-(degrades to `supported=false` → plate fallback when the native module is absent — never fabricates
-a number). `measure()` returns `{ hasScale, distanceCm, imgWcm, fx, trackingState }`.
-
-> ⚠️ REFERENCE TEMPLATE — ARKit needs its own `ARSession`; it can't run at the same time as the
-> VisionCamera/expo-camera preview. Intended as a brief **calibration tap** (start → measure → stop)
-> on standard_ar devices, NOT a continuous parallel session.
-
-## Integration (remaining device-side steps)
-
-1. Add `ARScaleModule.swift` + `.m` to the Xcode target (same `-Swift.h` bridging import as the
-   depth plugin). Ensure `NSCameraUsageDescription` is set.
-2. In the capture screen, for `tier === 'standard_ar'`, mount a small AR calibration step:
-   `const ar = useARScale(); await ar.start(); const imgWcm = await ar.measure(); ar.stop();`
-   then pass `imgWcm` into the same `navigation.setParams({ ... imgWcm })` path
-   `VisionCameraView` uses for LiDAR. (This is the part that needs a real device — ARKit raycasting
-   does not run in the simulator.)
-3. Android/ARCore equivalent (`ARCore` Frame `hitTest` on a detected plane) is a parallel TODO; the
-   JS hook already no-ops on Android until added.
-
-## Verify
-
-- `await NativeModules.ARScaleModule.isSupported()` → `true` on an ARKit device.
-- After a `measure()` with the camera aimed at food on a table, `imgWcm` is a plausible 12–90 cm
-  (clamped in `scale.ts`), and the backend prompt carries `"img_w_cm": <measured>`.
+It runs one brief `ARSession` right after the photo is taken, raycasts the frame center onto a
+horizontal plane, and returns `{ distanceCm, fx, width }`; JS converts that to `img_w_cm` with the
+same pinhole formula as LiDAR. Called from `ReviewMealScreen` (non-LiDAR camera) and from
+`VisionCameraView` when the LiDAR read comes back empty. No plane within 2.5s → no scale sent, and
+the backend keeps its default plate width. Android/ARCore is not implemented.

@@ -13,9 +13,9 @@
  *
  * Tiers (accuracy label / UX only):
  *   lidar/tof   → real depth handled by VisionCameraView
- *   standard_ar → ARKit plane-raycast scale via `useARScale` (native ARScaleModule); this hook
- *                 still reports null distance and only drives the reticle UI — the standard_ar
- *                 capture screen reads img_w_cm from useARScale, not from here.
+ *   standard_ar → ARKit plane-raycast scale via `useARScale` (MetrifulLidar module), measured once
+ *                 at capture in ReviewMealScreen; this hook still reports null distance and only
+ *                 drives the reticle UI.
  *   basic       → user-assisted reference guide
  */
 
