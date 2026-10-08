@@ -35,6 +35,7 @@ import { getTierDescription, DeviceTier } from '@/hooks/useDeviceCapabilities';
 import { DepthResult } from '@/hooks/useDepthCamera';
 import { spacing, estimateImageWidthCm } from '@/utils';
 import { useLidarScale } from '@/hooks/useLidarScale';
+import { useARScale } from '@/hooks/useARScale';
 import type { LidarRegion } from '../../modules/metriful-lidar';
 
 // Conditionally import VisionCamera (only on native)
@@ -161,6 +162,8 @@ export const VisionCameraView: React.FC<VisionCameraViewProps> = ({
   // On-demand LiDAR scale (real depth at capture time). Primary source of img_w_cm on LiDAR devices;
   // the live frame-processor depth is only a UI hint and cannot read real depth in VisionCamera.
   const lidar = useLidarScale();
+  // ARKit plane-raycast scale when the LiDAR read comes back empty (device without LiDAR).
+  const arScale = useARScale();
 
   // Request permission on mount
   useEffect(() => {
@@ -250,23 +253,32 @@ export const VisionCameraView: React.FC<VisionCameraViewProps> = ({
       // Take one REAL LiDAR depth reading now (primary). Falls back to the live frame-processor hint,
       // then to null (backend uses its default plate width). Never blocks/throws the capture.
       const lidarScale = await lidar.measure();
+      const ar = lidarScale.imgWidthCm == null && arScale.available ? await arScale.measure() : null;
+      const usedAr = ar?.imgWidthCm != null;
       const depth = depthCamera.currentDepth;
 
       const imgWcm =
         lidarScale.imgWidthCm ??
+        ar?.imgWidthCm ??
         estimateImageWidthCm({
           distanceCm: depth?.distanceCm,
           fxPx: depth?.fx,
           frameWidthPx: depth?.width,
           horizontalFovDeg: depth?.horizontalFovDeg,
         });
-      const distanceCm = lidarScale.distanceCm ?? depth?.distanceCm ?? null;
+      const distanceCm = lidarScale.distanceCm ?? ar?.distanceCm ?? depth?.distanceCm ?? null;
       const usedLidar = lidarScale.imgWidthCm != null;
       const metadata: CaptureMetadata = {
         distanceCm,
-        confidence: usedLidar ? lidarScale.confidence : depth?.confidence ?? 0,
+        confidence: usedLidar
+          ? lidarScale.confidence
+          : usedAr
+          ? ar.confidence
+          : depth?.confidence ?? 0,
         accuracy: usedLidar
           ? '±1cm (LiDAR)'
+          : usedAr
+          ? '±3cm (ARKit)'
           : depthCamera.supportsDepth
           ? (depthCamera.deviceTier === 'lidar' ? '±1cm' : '±3cm')
           : '±5cm (estimated)',
@@ -291,7 +303,7 @@ export const VisionCameraView: React.FC<VisionCameraViewProps> = ({
     } finally {
       setIsCapturing(false);
     }
-  }, [isCapturing, flashMode, depthCamera, lidar, autoUsePhoto, onCapture]);
+  }, [isCapturing, flashMode, depthCamera, lidar, arScale, autoUsePhoto, onCapture]);
 
   // Use captured photo
   const handleUsePhoto = useCallback(() => {

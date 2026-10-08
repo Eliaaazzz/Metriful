@@ -1,5 +1,6 @@
 /**
- * MetrifulLidar — on-demand LiDAR depth measurement (iOS, LiDAR devices only).
+ * MetrifulLidar — on-demand LiDAR depth measurement (iOS, LiDAR devices only), plus an ARKit
+ * plane-raycast scale fallback for devices without LiDAR.
  *
  * Returns a single center-of-frame distance + camera focal length at capture time, which
  * `estimateImageWidthCm` (src/utils/scale.ts) converts into the real-world frame width (img_w_cm)
@@ -54,9 +55,29 @@ export interface LidarReading {
   reason?: string;
 }
 
+/** ARKit horizontal-plane reading for devices without LiDAR (standard_ar tier). */
+export interface ArPlaneReading {
+  hasScale: boolean;
+  /** camera-to-table distance along the optical axis, cm (median of the raycast samples) */
+  distanceCm?: number;
+  /** focal length in pixels along the photo's horizontal axis, matching `width` */
+  fx?: number;
+  /** captured-image extent in pixels along the photo's horizontal axis (orientation-aware) */
+  width?: number;
+  /** number of plane hits the median was taken over */
+  samples?: number;
+  /** 0–1; capped at 0.8 (below LiDAR) */
+  confidence?: number;
+  trackingState?: string;
+  /** why scale was unavailable, when hasScale=false */
+  reason?: string;
+}
+
 interface MetrifulLidarNative {
   isAvailable(): boolean;
   measure(): Promise<LidarReading>;
+  isArPlaneAvailable?(): boolean;
+  measureArPlane?(): Promise<ArPlaneReading>;
 }
 
 let native: MetrifulLidarNative | null = null;
@@ -89,4 +110,23 @@ export async function measureLidar(): Promise<LidarReading> {
   }
 }
 
-export default { isLidarAvailable, measureLidar };
+/** True on an ARKit world-tracking device with the module compiled in. */
+export function isArPlaneAvailable(): boolean {
+  try {
+    return native?.isArPlaneAvailable?.() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** Take one ARKit plane-raycast scale reading. Always resolves; never throws. */
+export async function measureArPlane(): Promise<ArPlaneReading> {
+  if (!native?.measureArPlane) return { hasScale: false, reason: 'module_unavailable' };
+  try {
+    return await native.measureArPlane();
+  } catch (e) {
+    return { hasScale: false, reason: `error:${String(e)}` };
+  }
+}
+
+export default { isLidarAvailable, measureLidar, isArPlaneAvailable, measureArPlane };

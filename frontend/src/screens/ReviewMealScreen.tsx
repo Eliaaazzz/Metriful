@@ -10,6 +10,7 @@ import { ScanStagesList } from '@/components/nutrition/ScanStagesList';
 import { CameraView } from '@/components/CameraView';
 import { VisionCameraView } from '@/components/VisionCameraView';
 import { useCameraPermission } from '@/hooks/useCameraPermission';
+import { useARScale } from '@/hooks/useARScale';
 import { useDailyNutrition } from '@/hooks/useDailyNutrition';
 import { useDeviceCapabilities } from '@/hooks/useDeviceCapabilities';
 import { trackEvent } from '@/services/analytics';
@@ -185,6 +186,9 @@ export function ReviewMealScreen({ route, navigation }: any) {
   // everything else (and web) keeps the existing basic camera. Safe either way: when no
   // real depth is available the computed imgWcm is null and we fall back to scaleHintCm.
   const useDepthCapture = Platform.OS !== 'web' && (capabilities.hasLiDAR || capabilities.hasToF);
+  // Non-LiDAR iPhones: one ARKit plane raycast right after capture gives a measured img_w_cm.
+  const arScale = useARScale();
+  const [measuringScale, setMeasuringScale] = useState(false);
   const scaleHintCm = typeof imgWcm === 'number' ? imgWcm : DEFAULT_MEAL_IMAGE_WIDTH_CM;
   // Absolute LiDAR food volume (cm³) captured at photo time; enables geometric portion refinement
   // on the backend. Undefined for gallery photos / non-depth devices, where the backend no-ops.
@@ -769,20 +773,31 @@ export function ReviewMealScreen({ route, navigation }: any) {
           />
         ) : (
           <CameraView
-            onCapture={(uri) => navigation.setParams({
-              imageUri: uri,
-              imageMimeType: undefined,
-              imageFileName: undefined,
-              openCamera: false,
-              imgWcm: scaleHintCm,
-              // Basic (non-depth) camera has no LiDAR volume/regions — never refine on stale data.
-              volumeCm3: null,
-              items: null,
-            })}
+            onCapture={async (uri) => {
+              let arImgWcm: number | null = null;
+              if (arScale.available) {
+                setMeasuringScale(true);
+                try {
+                  arImgWcm = (await arScale.measure()).imgWidthCm;
+                } finally {
+                  setMeasuringScale(false);
+                }
+              }
+              navigation.setParams({
+                imageUri: uri,
+                imageMimeType: undefined,
+                imageFileName: undefined,
+                openCamera: false,
+                imgWcm: arImgWcm ?? scaleHintCm,
+                // Basic (non-depth) camera has no LiDAR volume/regions — never refine on stale data.
+                volumeCm3: null,
+                items: null,
+              });
+            }}
             onCancel={handleCameraCancel}
             onGalleryPress={openGallery}
             guideText="Align food here"
-            processing={false}
+            processing={measuringScale}
             showReticle
             captureButtonVariant="glass"
             autoUsePhoto

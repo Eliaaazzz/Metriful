@@ -194,7 +194,7 @@ carry their own distribution terms.
 | | |
 |---|---|
 | [`modules/metriful-lidar/ios/MetrifulLidarModule.swift`](frontend/modules/metriful-lidar/ios/MetrifulLidarModule.swift) | `builtInLiDARDepthCamera` + `AVCaptureDepthDataOutput`; camera intrinsics (`fx`) turn pixels into cm → `volumeCm3` / `areaCm2` / `meanHCm` |
-| [`native-depth-plugin/ios/ARScaleModule.swift`](frontend/native-depth-plugin/ios/ARScaleModule.swift) | ARKit scale fallback for non-LiDAR devices |
+| [`modules/metriful-lidar/ios/ArPlaneMeasurer.swift`](frontend/modules/metriful-lidar/ios/ArPlaneMeasurer.swift) | ARKit plane raycast at capture: measured `img_w_cm` on iPhones without LiDAR |
 | [`src/hooks/useLidarScale.ts`](frontend/src/hooks/useLidarScale.ts) | samples depth once at capture and attaches it to the upload metadata |
 
 Requires an `eas build` on a LiDAR-equipped iPhone; it is not exercised by Expo Go or by CI.
