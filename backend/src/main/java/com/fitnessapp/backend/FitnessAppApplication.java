@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan(basePackages = {
@@ -21,6 +22,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     "com.aura"
 })
 @EnableCaching
+@EnableScheduling
 @EnableJpaRepositories(basePackages = {
     "com.fitnessapp.backend.user.repository",
     "com.fitnessapp.backend.recipe.repository",
@@ -31,6 +33,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     "com.fitnessapp.backend.repository",
     "com.fitnessapp.backend.goals.repository",
     "com.fitnessapp.backend.weight.repository",
+    "com.fitnessapp.backend.behavior.repository",
     "com.aura.repository"
 })
 public class FitnessAppApplication {

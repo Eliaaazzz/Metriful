@@ -1622,6 +1622,12 @@ const ProfileScreen = () => {
             'Analyze your nutrition trends',
             () => navigation.navigate('WeeklyInsights' as any)
           )}
+          {renderMenuItem(
+            'chart-timeline-variant',
+            'Behavior Insights',
+            'Explore habits linked to your Daily Score',
+            () => navigation.navigate('Insights' as any)
+          )}
         </Animated.View>
 
         <Animated.View entering={staggerEnter(3)} style={styles.menuSection}>

@@ -30,6 +30,11 @@ public enum ErrorCode {
     MEAL_NOT_FOUND(2002, "Meal not found", HttpStatus.NOT_FOUND),
     PROFILE_NOT_FOUND(2003, "User profile not found", HttpStatus.NOT_FOUND),
 
+    // Behavior Insights errors (2030-2039) — see com.fitnessapp.backend.behavior
+    INSIGHT_NOT_FOUND(2030, "Insight not found", HttpStatus.NOT_FOUND),
+    INSIGHT_ACCESS_DENIED(2031, "Insight does not belong to this user", HttpStatus.FORBIDDEN),
+    INSIGHT_TIER_REQUIRED(2032, "This insight requires a Pro subscription", HttpStatus.PAYMENT_REQUIRED),
+
     // AI/Vision errors (3xxx)
     AI_SERVICE_UNAVAILABLE(3001, "AI service temporarily unavailable", HttpStatus.SERVICE_UNAVAILABLE),
     AI_RECOGNITION_FAILED(3002, "Food recognition failed", HttpStatus.BAD_REQUEST),

@@ -45,6 +45,8 @@ dependencies {
 	implementation("com.google.apis:google-api-services-youtube:v3-rev20230502-2.0.0")
 	implementation("com.google.http-client:google-http-client-jackson2:1.43.3")
     implementation("org.apache.pdfbox:pdfbox:2.0.31")
+    // Behavior Insights — Welch's t-test, Cohen's d (feature #221)
+    implementation("org.apache.commons:commons-math3:3.6.1")
 	// OpenAI SDK for GPT-4 Vision
 	implementation("com.theokanning.openai-gpt3-java:service:0.18.2")
 	// HTTP client for Claude and Gemini APIs (using OkHttp)

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import com.fitnessapp.backend.behavior.BehaviorInsightException;
 import com.fitnessapp.backend.embedding.EmbeddingGenerationException;
 import com.fitnessapp.backend.auth.AuthenticationException;
 import com.fitnessapp.backend.nutrition.exception.FoodRecognitionException;
@@ -72,6 +73,20 @@ public class GlobalExceptionHandler {
                 "Failed to process content: " + ex.getMessage(),
                 request.getRequestURI()
         );
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(response);
+    }
+
+    // ========== Behavior Insight Exceptions ==========
+
+    @ExceptionHandler(BehaviorInsightException.class)
+    public ResponseEntity<ApiEnvelope<Void>> handleBehaviorInsightException(
+            BehaviorInsightException ex,
+            HttpServletRequest request
+    ) {
+        ErrorCode errorCode = ex.getErrorCode();
+        log.warn("Behavior insight error [{}]: {}", errorCode.getCode(), ex.getMessage());
+
+        ApiEnvelope<Void> response = ApiEnvelope.error(errorCode, ex.getMessage(), request.getRequestURI());
         return ResponseEntity.status(errorCode.getHttpStatus()).body(response);
     }
 
