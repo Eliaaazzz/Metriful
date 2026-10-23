@@ -3,8 +3,8 @@
  *
  * Backs the basic / fallback camera (expo-camera), which has NO access to the depth
  * sensor. Real LiDAR/ToF depth is read by VisionCameraView through the native
- * frame-processor plugin (`__getDepthAtCenter`) and converted to a real-world scale
- * by `estimateImageWidthCm`.
+ * frame-processor plugin (`__getDepthAtCenter`) or useLidarScale, then converted to
+ * img_w_cm by the capture flow (see native-depth-plugin/README.md).
  *
  * Because expo-camera cannot read the depth sensor, this hook does NOT fabricate a
  * distance — it reports `null` unless the user sets one manually — and only drives
@@ -15,7 +15,7 @@
  *   lidar/tof   → real depth handled by VisionCameraView
  *   standard_ar → ARKit plane-raycast scale via `useARScale` (native ARScaleModule); this hook
  *                 still reports null distance and only drives the reticle UI — the standard_ar
- *                 capture screen reads img_w_cm from useARScale, not from here.
+ *                 capture integration for useARScale remains a follow-up.
  *   basic       → user-assisted reference guide
  */
 

@@ -32,28 +32,41 @@ class GetDepthAtCenterPlugin(
       return hashMapOf("hasDepth" to false, "width" to width, "height" to height)
     }
 
-    val meters = readCenterDepthMeters(depthImage)
-    if (meters == null || meters <= 0f) {
+    val sample = readCenterDepth(depthImage)
+    if (sample == null || sample.meters <= 0f) {
       return hashMapOf("hasDepth" to false, "width" to width, "height" to height)
     }
 
     // fx (px) from LENS_INTRINSIC_CALIBRATION [fx, fy, cx, cy, s], scaled to frame width.
     val fx = DepthBridge.focalLengthPx(width)
+    // Without intrinsics we cannot convert distance -> img_w_cm; report no usable depth
+    // rather than emitting fx:0 (which divides to Infinity/NaN downstream).
+    if (fx <= 0f) {
+      return hashMapOf("hasDepth" to false, "width" to width, "height" to height)
+    }
 
     return hashMapOf(
       "hasDepth" to true,
-      "distance" to meters,
-      "distanceCm" to meters * 100.0,
-      "confidence" to 0.9,
+      "distance" to sample.meters,
+      "distanceCm" to sample.meters * 100.0,
+      "confidence" to sample.confidence, // real DEPTH16 confidence, not a hardcoded value
       "fx" to fx,
       "width" to width,
       "height" to height,
-      "accuracy" to "absolute"
+      // Confidence describes this sample; absolute calibration requires device validation.
+      "accuracy" to "relative"
     )
   }
 
-  /** DEPTH16: each sample is 16-bit; low 13 bits = depth in millimeters, high 3 bits = confidence. */
-  private fun readCenterDepthMeters(image: Image): Float? {
+  private data class DepthSample(val meters: Float, val confidence: Float)
+
+  /**
+   * DEPTH16: each 16-bit sample packs depth in the low 13 bits (millimeters) and a
+   * confidence code in the high 3 bits. Per the Android format spec the code maps to a
+   * percentage as: 0 => 100% confident, otherwise (code - 1) / 7. Keep each depth
+   * paired with its confidence so reliable neighbours cannot validate a bad median.
+   */
+  private fun readCenterDepth(image: Image): DepthSample? {
     val plane = image.planes.firstOrNull() ?: return null
     val buffer = plane.buffer
     val rowStride = plane.rowStride
@@ -66,24 +79,28 @@ class GetDepthAtCenterPlugin(
     val cy = h / 2
     val radius = maxOf(1, minOf(w, h) / 64)
 
-    val samples = ArrayList<Float>()
+    val depths = ArrayList<DepthSample>()
     var y = maxOf(0, cy - radius)
     while (y <= minOf(h - 1, cy + radius)) {
       var x = maxOf(0, cx - radius)
       while (x <= minOf(w - 1, cx + radius)) {
         val index = y * rowStride + x * pixelStride
         if (index + 1 < buffer.limit()) {
-          val sample = (buffer.get(index).toInt() and 0xFF) or ((buffer.get(index + 1).toInt() and 0xFF) shl 8)
-          val millimeters = sample and 0x1FFF // low 13 bits
-          if (millimeters > 0) samples.add(millimeters / 1000f)
+          val raw = (buffer.get(index).toInt() and 0xFF) or ((buffer.get(index + 1).toInt() and 0xFF) shl 8)
+          val millimeters = raw and 0x1FFF       // low 13 bits
+          val code = (raw shr 13) and 0x7         // high 3 bits = confidence code
+          if (millimeters > 0) {
+            val confidence = if (code == 0) 1f else (code - 1) / 7f
+            depths.add(DepthSample(millimeters / 1000f, confidence))
+          }
         }
         x++
       }
       y++
     }
-    if (samples.isEmpty()) return null
-    samples.sort()
-    return samples[samples.size / 2] // median, meters
+    if (depths.isEmpty()) return null
+    depths.sortBy { it.meters }
+    return depths[depths.size / 2]
   }
 }
 

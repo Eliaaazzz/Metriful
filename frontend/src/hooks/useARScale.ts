@@ -31,6 +31,14 @@ interface ARScaleNative {
 const Native: ARScaleNative | undefined =
   Platform.OS === 'ios' ? (NativeModules.ARScaleModule as ARScaleNative | undefined) : undefined;
 
+// Plausible real-world image-width window for a food close-up. A plane raycast that
+// lands on something other than the table (e.g. a far wall) produces a wildly
+// out-of-range width; rather than feed the backend a fabricated scale we drop it and
+// let the caller fall back to the plate-reference default. (±cm bounds documented in
+// native-depth-plugin/README.md.)
+const MIN_PLAUSIBLE_IMG_W_CM = 12;
+const MAX_PLAUSIBLE_IMG_W_CM = 90;
+
 export interface UseARScale {
   /** Native module present AND device reports ARWorldTracking support. */
   supported: boolean;
@@ -48,36 +56,63 @@ export function useARScale(enabled = true): UseARScale {
   const [supported, setSupported] = useState(false);
   const [imgWcm, setImgWcm] = useState<number | null>(null);
   const started = useRef(false);
+  const active = useRef(enabled);
+  const commands = useRef<Promise<void>>(Promise.resolve());
+
+  const stopSession = useCallback(() => {
+    commands.current = commands.current.then(async () => {
+      if (!started.current) return;
+      try { await Native?.stop(); } catch { /* release is best effort */ }
+      started.current = false;
+    });
+    return commands.current;
+  }, []);
 
   useEffect(() => {
     let alive = true;
+    active.current = enabled;
+    if (!enabled) {
+      setSupported(false);
+      setImgWcm(null);
+    }
     if (enabled && Native?.isSupported) {
       Native.isSupported().then((s) => { if (alive) setSupported(!!s); }).catch(() => {});
     }
     return () => {
       alive = false;
-      if (started.current) Native?.stop().catch(() => {});
+      active.current = false;
+      // Queue release after any pending start so unmount cannot leak the camera.
+      void stopSession();
     };
-  }, [enabled]);
+  }, [enabled, stopSession]);
 
   const start = useCallback(async () => {
-    if (!Native || started.current) return;
-    try { await Native.start(); started.current = true; } catch { /* fall back to plate scale */ }
+    if (!Native || !active.current) return;
+    commands.current = commands.current.then(async () => {
+      if (!active.current || started.current) return;
+      try { started.current = !!(await Native.start()); } catch { /* fall back to plate scale */ }
+    });
+    await commands.current;
   }, []);
 
-  const stop = useCallback(async () => {
-    if (!Native || !started.current) return;
-    try { await Native.stop(); } finally { started.current = false; }
-  }, []);
+  const stop = stopSession;
 
   const measure = useCallback(async (): Promise<number | null> => {
     if (!Native) return null;
     try {
       const m = await Native.measure();
-      const v = m.hasScale && typeof m.imgWcm === 'number' && isFinite(m.imgWcm) ? m.imgWcm : null;
-      if (v !== null) setImgWcm(v);
+      const finite =
+        m.hasScale && typeof m.imgWcm === 'number' && isFinite(m.imgWcm) ? m.imgWcm : null;
+      // Plausibility gate: only a value inside the food-framing window is trusted;
+      // anything else degrades to the plate fallback rather than fabricating a scale.
+      const v =
+        finite !== null && finite >= MIN_PLAUSIBLE_IMG_W_CM && finite <= MAX_PLAUSIBLE_IMG_W_CM
+          ? finite
+          : null;
+      setImgWcm(v);
       return v;
     } catch {
+      setImgWcm(null);
       return null;
     }
   }, []);
