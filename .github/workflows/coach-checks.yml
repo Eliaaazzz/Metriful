@@ -6,8 +6,33 @@ on:
     paths: ['agent-service/**', 'backend/**', 'frontend/**', 'package.json', 'package-lock.json',
             'infrastructure/docker-compose.agent.yml', '.github/workflows/coach-checks.yml']
   workflow_dispatch:
+    inputs:
+      full_backend:
+        description: 'Run the complete backend suite with PostgreSQL containers'
+        required: false
+        type: boolean
+        default: false
 jobs:
+  full-backend:
+    if: ${{ inputs.full_backend }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - run: docker info
+      - run: bash gradlew test --no-daemon --console=plain
+        working-directory: backend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-backend-test-results
+          path: backend/build/test-results/test/TEST-*.xml
   http-contract:
+    if: ${{ !inputs.full_backend }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +53,7 @@ jobs:
           name: coach-http-integration-logs
           path: ${{ runner.temp }}/coach-http/*.log
   agent:
+    if: ${{ !inputs.full_backend }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +65,7 @@ jobs:
       - run: python -m pytest -q
         working-directory: agent-service
   integration:
+    if: ${{ !inputs.full_backend }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
