@@ -23,6 +23,12 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            frontend/ios/Pods
+            work/health-ios/DerivedData
+          key: health-ios-${{ runner.os }}-${{ hashFiles('package-lock.json', 'frontend/ios/Podfile.lock') }}-v1
       - run: bash scripts/build-health-ios.sh
         working-directory: frontend
       - uses: actions/upload-artifact@v4
@@ -37,6 +43,15 @@ jobs:
         with:
           name: health-ios-simulator-app
           path: work/health-ios/Metriful-simulator.app.tar.gz
+      - run: bash frontend/scripts/smoke-health-ios.sh work/health-ios/Metriful-simulator.app.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: health-ios-simulator-smoke
+          path: |
+            work/health-ios-smoke/*.log
+            work/health-ios-smoke/*.png
+            work/health-ios-smoke/*.plist
   simulator-smoke:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.compiled_run_id != '' }}
     runs-on: macos-15

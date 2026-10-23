@@ -7,18 +7,6 @@ mkdir -p "$OUTPUT"
 tar -xzf "$1" -C "$OUTPUT"
 APP="$OUTPUT/Metriful.app"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")
-# Give the isolated simulator app its own Keychain group for SecureStore reads.
-python3 - "$OUTPUT/simulator.entitlements" "$BUNDLE_ID" <<'PY'
-import plistlib, sys
-team = 'METRIFULCI'
-app_id = team + '.' + sys.argv[2]
-with open(sys.argv[1], 'wb') as output:
-    plistlib.dump({'application-identifier': app_id,
-                  'com.apple.developer.team-identifier': team,
-                  'keychain-access-groups': [app_id]}, output)
-PY
-codesign --force --deep --sign - "$APP"
-codesign --force --sign - --entitlements "$OUTPUT/simulator.entitlements" "$APP"
 codesign --verify --deep --strict "$APP"
 codesign -d --entitlements - "$APP" > "$OUTPUT/signed-entitlements.plist" 2> "$OUTPUT/signature.log"
 SIMULATOR=$(xcrun simctl list devices available --json | python3 -c '
@@ -27,7 +15,13 @@ devices = json.load(sys.stdin)["devices"]
 print(next(d["udid"] for runtime, group in devices.items() if ".iOS-" in runtime
            for d in group if d["name"].startswith("iPhone") and d["isAvailable"]))
 ')
-trap 'xcrun simctl shutdown "$SIMULATOR" >/dev/null 2>&1 || true' EXIT
+cleanup() {
+  xcrun simctl spawn "$SIMULATOR" log show --last 3m --style compact \
+    --predicate 'process == "Metriful" OR process == "amfid" OR process == "SpringBoard"' \
+    > "$OUTPUT/system.log" 2>&1 || true
+  xcrun simctl shutdown "$SIMULATOR" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 xcrun simctl boot "$SIMULATOR"
 xcrun simctl bootstatus "$SIMULATOR" -b
 xcrun simctl install "$SIMULATOR" "$APP"
