@@ -7,7 +7,20 @@ mkdir -p "$OUTPUT"
 tar -xzf "$1" -C "$OUTPUT"
 APP="$OUTPUT/Metriful.app"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")
+# Give the isolated simulator app its own Keychain group for SecureStore reads.
+python3 - "$OUTPUT/simulator.entitlements" "$BUNDLE_ID" <<'PY'
+import plistlib, sys
+team = 'METRIFULCI'
+app_id = team + '.' + sys.argv[2]
+with open(sys.argv[1], 'wb') as output:
+    plistlib.dump({'application-identifier': app_id,
+                  'com.apple.developer.team-identifier': team,
+                  'keychain-access-groups': [app_id]}, output)
+PY
 codesign --force --deep --sign - "$APP"
+codesign --force --sign - --entitlements "$OUTPUT/simulator.entitlements" "$APP"
+codesign --verify --deep --strict "$APP"
+codesign -d --entitlements - "$APP" > "$OUTPUT/signed-entitlements.plist" 2> "$OUTPUT/signature.log"
 SIMULATOR=$(xcrun simctl list devices available --json | python3 -c '
 import json, sys
 devices = json.load(sys.stdin)["devices"]
@@ -30,3 +43,9 @@ PY
 xcrun simctl io "$SIMULATOR" screenshot "$OUTPUT/launch.png"
 xcrun simctl spawn "$SIMULATOR" log show --last 2m --style compact \
   --predicate 'process == "Metriful"' > "$OUTPUT/runtime.log" 2>&1
+python3 - "$OUTPUT/runtime.log" <<'PY'
+import pathlib, sys
+text = pathlib.Path(sys.argv[1]).read_text()
+assert "A required entitlement isn't present" not in text, 'Simulator Keychain entitlement missing'
+print('No missing-entitlement Keychain failures during launch.')
+PY

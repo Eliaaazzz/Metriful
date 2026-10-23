@@ -60,3 +60,4 @@ jobs:
           path: |
             work/health-ios-smoke/*.log
             work/health-ios-smoke/*.png
+            work/health-ios-smoke/*.plist
