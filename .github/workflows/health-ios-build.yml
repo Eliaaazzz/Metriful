@@ -3,6 +3,9 @@ on:
   workflow_dispatch:
   push:
     branches: ['codex/health-native-*']
+concurrency:
+  group: health-ios-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   ios:
     runs-on: macos-15
@@ -20,4 +23,11 @@ jobs:
         if: always()
         with:
           name: health-ios-native-build-log
-          path: work/health-ios/*.log
+          path: |
+            work/health-ios/*.log
+            frontend/ios/Podfile.lock
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: health-ios-simulator-app
+          path: work/health-ios/Metriful-simulator.app.tar.gz

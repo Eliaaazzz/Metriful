@@ -1,5 +1,7 @@
 name: Coach and Health integration checks
 on:
+  push:
+    branches: ['codex/health-native-*']
   pull_request:
     paths: ['agent-service/**', 'backend/**', 'frontend/**', 'package.json', 'package-lock.json',
             'infrastructure/docker-compose.agent.yml', '.github/workflows/coach-checks.yml']

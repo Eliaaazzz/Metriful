@@ -11,8 +11,10 @@ npm run ios:check
 mkdir -p "$REPO_ROOT/work/health-ios"
 cd ios
 pod install --repo-update 2>&1 | tee "$REPO_ROOT/work/health-ios/pod-install.log"
-xcodebuild -workspace Metriful.xcworkspace -scheme Metriful -configuration Debug \
+xcodebuild -workspace Metriful.xcworkspace -scheme Metriful -configuration Release \
   -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath "$REPO_ROOT/work/health-ios/DerivedData" \
   CODE_SIGNING_ALLOWED=NO build > "$REPO_ROOT/work/health-ios/xcodebuild.log" 2>&1
+tar -czf "$REPO_ROOT/work/health-ios/Metriful-simulator.app.tar.gz" \
+  -C "$REPO_ROOT/work/health-ios/DerivedData/Build/Products/Release-iphonesimulator" Metriful.app
 echo "Native simulator compilation passed. Log: $REPO_ROOT/work/health-ios/xcodebuild.log"
