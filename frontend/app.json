@@ -23,7 +23,11 @@
       "buildNumber": "5",
       "supportsTablet": true,
       "usesAppleSignIn": true,
+      "entitlements": {
+        "com.apple.developer.healthkit": true
+      },
       "infoPlist": {
+        "NSHealthShareUsageDescription": "Metriful reads the activity, sleep and weight data you choose to share to show your daily health summary. You can separately choose to share this summary with AI Coach.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
@@ -86,7 +90,8 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      ["expo-build-properties", { "ios": { "deploymentTarget": "15.4" } }]
     ],
     "notification": {
       "icon": "./assets/icon.png",

@@ -910,12 +910,16 @@ const ProfileScreen = () => {
     'book-open-variant': BookOpenText,
     'food-apple': ForkKnife,
     'chart-line': ChartLine,
+    'coach': MagicWand,
+    'apple-health': PersonSimpleRun,
     'account-edit-outline': UserGear,
     'food-apple-outline': ForkKnife,
     'bell-outline': Bell,
     'account-remove-outline': UserCircleMinus,
   };
   const menuAccentMap: Record<string, { iconColor: string; iconBg: string }> = {
+    'coach': { iconColor: BRAND_COLORS.primary, iconBg: BRAND_COLORS.primaryTint },
+    'apple-health': { iconColor: BRAND_COLORS.secondary, iconBg: BRAND_COLORS.secondaryContainer },
     'dumbbell': { iconColor: '#F97316', iconBg: '#FFF1E5' },
     'book-open-variant': { iconColor: '#2F7A6A', iconBg: '#EAF8F2' },
     'food-apple': { iconColor: '#84A13E', iconBg: '#F1F5E8' },
@@ -1594,6 +1598,15 @@ const ProfileScreen = () => {
         )}
 
         {/* Menu Items */}
+        <Animated.View entering={staggerEnter(2)} style={styles.menuSection}>
+          <Text variant="heading3" weight="semibold" style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+            Your Health Companion
+          </Text>
+          {renderMenuItem('coach', 'AI Coach', 'One useful next step from your data',
+            () => navigation.navigate('Coach'))}
+          {renderMenuItem('apple-health', 'Apple Health', 'Connect movement, sleep and weight',
+            () => navigation.navigate('AppleHealth'))}
+        </Animated.View>
         <Animated.View entering={staggerEnter(2)} style={styles.menuSection}>
           <Text variant="heading3" weight="semibold" style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
             Your Library

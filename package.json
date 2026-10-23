@@ -48,15 +48,19 @@
   ],
   "license": "UNLICENSED",
   "devDependencies": {
+    "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },
   "dependencies": {
-    "expo": "~54.0.31",
+    "expo": "~54.0.37",
     "react": "19.1.0",
     "react-native": "0.81.5"
   },
   "overrides": {
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-test-renderer": "19.1.0",
+    "react-native-svg": "15.12.1",
+    "react-native-worklets": "0.5.1"
   }
 }

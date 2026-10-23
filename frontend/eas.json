@@ -13,6 +13,15 @@
       "extends": "production",
       "distribution": "internal"
     },
+    "health-preview": {
+      "extends": "preview",
+      "autoIncrement": true,
+      "ios": { "buildConfiguration": "Release" }
+    },
+    "health-simulator": {
+      "extends": "health-preview",
+      "ios": { "simulator": true }
+    },
     "production": {
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://aurafitness.org",

@@ -1,0 +1,162 @@
+# ==========================================
+# ROOT LEVEL
+# ==========================================
+*.log
+system.log*
+application.log*
+error.log*
+debug.log*
+*.tar.gz
+*.zip
+.DS_Store
+*.pem
+*.p8
+.env
+.env.dev
+.env.prod
+.env.local
+upload.txt
+node_modules/
+venv/
+.gradle/
+.firebase/
+public/
+!frontend/public/
+!frontend/public/**
+
+# ==========================================
+# BACKEND (Java/Spring Boot/Gradle)
+# ==========================================
+backend/build/
+backend/bin/
+backend/.gradle/
+backend/out/
+backend/.idea/
+backend/*.iml
+backend/*.iws
+backend/*.ipr
+backend/target/
+backend/.settings/
+backend/.classpath
+backend/.project
+backend/.factorypath
+backend/*.log
+backend/logs/
+backend/system.log*
+backend/application.log*
+backend/spring.log*
+backend/src/main/resources/application-dev.yml
+backend/secrets/
+!backend/gradle/wrapper/gradle-wrapper.jar
+!backend/**/src/main/**/build/
+!backend/**/src/test/**/build/
+
+# ==========================================
+# FRONTEND (React Native/Expo)
+# ==========================================
+frontend/node_modules/
+frontend/.expo/
+frontend/.expo-shared/
+frontend/dist/
+frontend/web-build/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.DS_Store
+frontend/*.jks
+frontend/*.p8
+frontend/*.p12
+frontend/*.key
+frontend/*.mobileprovision
+frontend/*.orig.*
+frontend/web/
+frontend/.env.local
+frontend/.env.production.local
+frontend/.mcp.json
+
+# ==========================================
+# SHARED
+# ==========================================
+shared/node_modules/
+shared/dist/
+
+# ==========================================
+# INFRASTRUCTURE
+# ==========================================
+infrastructure/**/*.pem
+infrastructure/**/*.key
+infrastructure/**/.env
+infrastructure/**/.terraform/
+infrastructure/**/terraform.tfstate
+infrastructure/**/terraform.tfstate.backup
+
+# ==========================================
+# SCRIPTS
+# ==========================================
+scripts/**/*.log
+scripts/node_modules/
+
+# ==========================================
+# DOCS
+# ==========================================
+docs/**/.DS_Store
+
+# ==========================================
+# IDE & EDITORS
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+.continue/
+
+# ==========================================
+# OS
+# ==========================================
+Thumbs.db
+
+# Sensitive files
+frontend/credentials/
+frontend/credentials.json
+*.p12
+*.mobileprovision
+android/app/debug.keystore
+
+# Temp files
+*.save
+current-login.png
+google-apple-current.png
+tmp-*.png
+.expo/
+
+# 本地工作笔记,不入公开仓库
+docs/项目拷打文档.md
+
+# Internal interview / recruiting prep notes — keep out of the public repo.
+docs/interview-*.md
+docs/*-interview-*.md
+docs/项目拷打文档.md
+
+# Mobile build source only
+/backend/
+/agent-service/
+/infrastructure/
+/docs/
+/my-private-ai/
+/scripts/
+/skills/
+/.agent/
+/.agents/
+/.claude/
+/.codex/
+/.github/
+/.playwright-mcp/
+/ios/
+/android/
+/AGENTS.md
+/*.png
+/work/
+**/Pods/
+**/.env*

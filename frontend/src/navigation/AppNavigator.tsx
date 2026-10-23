@@ -35,6 +35,8 @@ import RegisterScreen from '@/screens/RegisterScreen';
 import OnboardingScreen from '@/screens/OnboardingScreen';
 import { MealHistoryScreen } from '@/screens/MealHistoryScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
+import { CoachScreen } from '@/screens/CoachScreen';
+import { AppleHealthScreen } from '@/screens/AppleHealthScreen';
 import { RecipeDetailScreen } from '@/screens/RecipeDetailScreen';
 import { RecipesScreen } from '@/screens/RecipesScreen';
 import { ResultsScreen } from '@/screens/ResultsScreen';
@@ -67,6 +69,8 @@ const SafeDashboardScreen = withErrorBoundary(DashboardScreen, 'Dashboard');
 const SafeWorkoutsScreen = withErrorBoundary(WorkoutsScreen, 'Workouts');
 const SafeRecipesScreen = withErrorBoundary(RecipesScreen, 'Recipes');
 const SafeProfileScreen = withErrorBoundary(ProfileScreen, 'Profile');
+const SafeCoachScreen = withErrorBoundary(CoachScreen, 'Coach');
+const SafeAppleHealthScreen = withErrorBoundary(AppleHealthScreen, 'AppleHealth');
 const SafeRecipeDetailScreen = withErrorBoundary(RecipeDetailScreen, 'RecipeDetail');
 const SafeResultsScreen = withErrorBoundary(ResultsScreen, 'Results');
 const SafeReviewMealScreen = withErrorBoundary(ReviewMealScreen, 'ReviewMeal');
@@ -300,6 +304,8 @@ const RecipesStackScreen = createTabStackNavigator([
 // Stack navigator for Profile tab: Profile -> WeeklyInsights / MealHistory / SavedWorkouts / SavedRecipes
 const ProfileStackScreen = createTabStackNavigator([
   { name: 'ProfileMain', component: SafeProfileScreen },
+  { name: 'Coach', component: SafeCoachScreen },
+  { name: 'AppleHealth', component: SafeAppleHealthScreen },
   { name: 'WeeklyInsights', component: SafeWeeklyInsightsScreen },
   { name: 'MealHistory', component: SafeMealHistoryScreen },
   { name: 'SavedWorkouts', component: SafeSavedWorkoutsScreen },

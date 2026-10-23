@@ -16,6 +16,20 @@ import com.fitnessapp.backend.nutrition.entity.MealLog;
 
 public interface MealLogRepository extends JpaRepository<MealLog, Long> {
 
+  // Local-day boundaries come from the gateway; the end is exclusive across DST changes.
+  @Query("""
+      select count(m) as mealCount,
+             coalesce(sum(coalesce(m.calories, 0) + coalesce(m.totalCalories, 0)), 0) as calories,
+             coalesce(sum(coalesce(m.proteinGrams, 0) + coalesce(m.totalProtein, 0)), 0) as protein,
+             coalesce(sum(coalesce(m.carbsGrams, 0) + coalesce(m.totalCarbs, 0)), 0) as carbs,
+             coalesce(sum(coalesce(m.fatGrams, 0) + coalesce(m.totalFat, 0)), 0) as fat
+        from MealLog m
+       where m.userId = :userId and m.consumedAt >= :start and m.consumedAt < :end
+      """)
+  com.fitnessapp.backend.coach.CoachNutritionTotals coachTotals(
+      @Param("userId") UUID userId, @Param("start") OffsetDateTime start,
+      @Param("end") OffsetDateTime end);
+
   List<MealLog> findByUserIdAndConsumedAtBetweenOrderByConsumedAtAsc(UUID userId, OffsetDateTime start, OffsetDateTime end);
 
   List<MealLog> findByUserIdAndConsumedAtBetweenOrderByConsumedAtDesc(UUID userId, OffsetDateTime start, OffsetDateTime end);

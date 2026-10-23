@@ -1,0 +1,24 @@
+# Merge with docker-compose.yml. Backend's existing env_file must also be configured.
+services:
+  agent:
+    build:
+      context: ../agent-service
+    environment:
+      AGENT_INTERNAL_KEY: ${AGENT_INTERNAL_KEY:?Set a random internal key of at least 32 characters}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?Set a Gemini API key}
+      AGENT_MODEL: ${AGENT_MODEL:-gemini-3.8-flash}
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/healthz')"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+  backend:
+    environment:
+      AGENT_SERVICE_URL: http://agent:8090
+      AGENT_INTERNAL_KEY: ${AGENT_INTERNAL_KEY:?Set a random internal key of at least 32 characters}
+    depends_on:
+      agent:
+        condition: service_healthy

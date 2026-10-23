@@ -357,7 +357,9 @@ See `cloudbuild.yaml` and `firebase.json` for the production deploy contracts.
 | YouTube workout library | ✅ Shipped |
 | Android (Google Play) | 🚧 In review |
 | RevenueCat subscription gating | 🚧 In progress |
-| HealthKit / Google Fit integration | 📋 Planned |
+| AI Coach with LangGraph tools | Implemented locally; service configuration required |
+| Apple Health daily read integration | Implemented locally; iOS build/device verification pending |
+| Android Health Connect integration | Planned |
 | Apple Watch companion app | 📋 Planned |
 
 ---

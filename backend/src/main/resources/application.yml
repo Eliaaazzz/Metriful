@@ -36,6 +36,9 @@ r2:
   public-url: ${R2_PUBLIC_URL:https://media.aurafitness.com}
 
 app:
+  coach:
+    url: ${AGENT_SERVICE_URL:}
+    internal-key: ${AGENT_INTERNAL_KEY:}
   api-key: ${API_KEY:${APP_API_KEY:fitness-secret-key-123}}  # API Key for request authentication (X-API-Key header)
   cookie:
     # For web (cookie-based auth). In cross-site deployments (frontend on a different
