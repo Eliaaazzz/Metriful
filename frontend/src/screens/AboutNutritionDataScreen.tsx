@@ -86,7 +86,7 @@ export function AboutNutritionDataScreen() {
 
         <Text style={styles.heading}>About Nutrition Data</Text>
         <Text style={styles.referenceLead}>
-          Direct references and calculation notes for the calorie, macro, and blood sugar values shown in Metriful.
+          Direct references and calculation notes for the calorie, macro, and estimated glycemic-impact values shown in Metriful. All values are estimates, not measurements.
         </Text>
 
         <Text style={styles.sectionTitle}>Current Dashboard Targets</Text>

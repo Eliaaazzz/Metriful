@@ -8,6 +8,24 @@
     ],
     "headers": [
       {
+        "source": "/",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "/about",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "/support",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
         "source": "**/*.html",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }
@@ -37,6 +55,10 @@
       {
         "source": "/support",
         "destination": "/support.html"
+      },
+      {
+        "source": "/about",
+        "destination": "/about.html"
       },
       {
         "source": "**",

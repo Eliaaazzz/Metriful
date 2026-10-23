@@ -10,6 +10,9 @@ import React from 'react';
 import { InsightCard } from '../InsightCard';
 import type { Insight } from '@/types/insights';
 
+jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+
 jest.mock('expo-haptics', () => ({
   selectionAsync: jest.fn().mockResolvedValue(undefined),
 }));
@@ -59,13 +62,8 @@ describe('InsightCard', () => {
     const { getByTestId } = render(
       <InsightCard insight={baseInsight} onTogglePin={onTogglePin} />,
     );
-    // Press the card's outer pressable, then the pin: simpler to call onTogglePin via the role.
-    // The pin Pressable is nested; we tap the card via testID then find the inner pin via accessibilityLabel.
-    fireEvent.press(getByTestId('insight-card-1'));
-    // The onPress is for the card itself; pin has its own Pressable. We can't easily target by role
-    // with multiple Pressables, so just verify the card handler works as a smoke test:
-    // (a fuller test would expose a testID on the pin button)
-    expect(onTogglePin).not.toHaveBeenCalled(); // the card-level press should not trigger pin
+    fireEvent.press(getByTestId('insight-pin-1'));
+    expect(onTogglePin).toHaveBeenCalledWith(baseInsight);
   });
 
   it('passes the insight to onPress when the card is tapped', () => {

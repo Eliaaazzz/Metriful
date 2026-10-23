@@ -1,16 +1,22 @@
 /**
  * Distance Estimation Hook
  *
- * Provides adaptive distance measurement based on device capabilities:
+ * Backs the basic / fallback camera (expo-camera), which has NO access to the depth
+ * sensor. Real LiDAR/ToF depth is read by VisionCameraView through the native
+ * frame-processor plugin (`__getDepthAtCenter`) and converted to a real-world scale
+ * by `estimateImageWidthCm`.
  *
- * Tier 1 (LiDAR/ToF): Real-time depth from sensor - instant, < 1% error
- * Tier 2 (AR): Plane detection with raycasting - ~0.5s calibration, < 5% error
- * Tier 3 (Basic): UI-based reference guide - user-assisted, < 15% error
+ * Because expo-camera cannot read the depth sensor, this hook does NOT fabricate a
+ * distance — it reports `null` unless the user sets one manually — and only drives
+ * the MagicReticle UI state. (Earlier versions simulated a random distance here;
+ * that has been removed so no fabricated scale ever reaches the backend.)
  *
- * For now, this is a simplified implementation that:
- * 1. Detects device tier
- * 2. Simulates distance estimation (real implementation needs native modules)
- * 3. Provides status updates for the MagicReticle UI
+ * Tiers (accuracy label / UX only):
+ *   lidar/tof   → real depth handled by VisionCameraView
+ *   standard_ar → ARKit plane-raycast scale via `useARScale` (native ARScaleModule); this hook
+ *                 still reports null distance and only drives the reticle UI — the standard_ar
+ *                 capture screen reads img_w_cm from useARScale, not from here.
+ *   basic       → user-assisted reference guide
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -27,7 +33,7 @@ export type EstimationStatus =
 
 export interface DistanceEstimation {
   status: EstimationStatus;
-  distance: number | null; // in centimeters
+  distance: number | null; // in centimeters; null when there is no real measurement
   confidence: number; // 0-1
   accuracy: string; // e.g., "±1cm", "±3cm"
   deviceTier: DeviceTier;
@@ -43,7 +49,7 @@ export interface UseDistanceEstimationOptions {
   idealDistance?: number;
   /** Auto-start estimation on mount (default: true) */
   autoStart?: boolean;
-  /** Callback when distance is locked and ready */
+  /** Callback when a real (manually set) distance is locked */
   onReady?: (distance: number) => void;
 }
 
@@ -62,7 +68,7 @@ export function useDistanceEstimation(
   reset: () => void;
   setManualDistance: (cm: number) => void;
 } {
-  const { minDistance, maxDistance, idealDistance, autoStart } = {
+  const { minDistance, maxDistance, autoStart } = {
     ...DEFAULT_OPTIONS,
     ...options,
   };
@@ -73,9 +79,8 @@ export function useDistanceEstimation(
   const [confidence, setConfidence] = useState(0);
 
   const isRunningRef = useRef(false);
-  const calibrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Calculate accuracy based on tier
+  // Accuracy label by tier (UI only).
   const accuracy = capabilities.tier === 'lidar'
     ? '±1cm'
     : capabilities.tier === 'standard_ar'
@@ -86,55 +91,18 @@ export function useDistanceEstimation(
     if (isRunningRef.current) return;
     isRunningRef.current = true;
 
-    setStatus('initializing');
-    setConfidence(0);
-
-    // Different initialization based on tier
-    if (capabilities.tier === 'lidar') {
-      // LiDAR: Nearly instant (simulate with short delay)
-      setTimeout(() => {
-        if (!isRunningRef.current) return;
-
-        // In real implementation, this would read from depth buffer
-        // For now, simulate a good distance
-        const simulatedDistance = idealDistance + (Math.random() - 0.5) * 10;
-        setDistance(Math.round(simulatedDistance));
-        setConfidence(0.99);
-        setStatus('ready');
-
-        options.onReady?.(Math.round(simulatedDistance));
-      }, 200);
-    } else if (capabilities.tier === 'standard_ar') {
-      // AR: Needs calibration time
-      setStatus('calibrating');
-
-      calibrationTimerRef.current = setTimeout(() => {
-        if (!isRunningRef.current) return;
-
-        // Simulate AR plane detection success
-        const simulatedDistance = idealDistance + (Math.random() - 0.5) * 15;
-        setDistance(Math.round(simulatedDistance));
-        setConfidence(0.85);
-        setStatus('ready');
-
-        options.onReady?.(Math.round(simulatedDistance));
-      }, 1500);
-    } else {
-      // Basic: Use default/manual distance
-      setDistance(idealDistance);
-      setConfidence(0.7);
-      setStatus('ready');
-
-      options.onReady?.(idealDistance);
-    }
-  }, [capabilities.tier, idealDistance, options]);
+    // expo-camera cannot read the depth sensor, so we never fabricate a distance.
+    // The camera is immediately usable; a precise measurement is only produced by
+    // VisionCameraView on depth-capable devices. Tier affects the label only.
+    const baseConfidence =
+      capabilities.tier === 'lidar' ? 0.9 : capabilities.tier === 'standard_ar' ? 0.75 : 0.6;
+    setDistance(null);
+    setConfidence(baseConfidence);
+    setStatus('ready');
+  }, [capabilities.tier]);
 
   const stop = useCallback(() => {
     isRunningRef.current = false;
-    if (calibrationTimerRef.current) {
-      clearTimeout(calibrationTimerRef.current);
-      calibrationTimerRef.current = null;
-    }
     setStatus('idle');
   }, []);
 
@@ -145,7 +113,6 @@ export function useDistanceEstimation(
   }, [stop]);
 
   const setManualDistance = useCallback((cm: number) => {
-    // Validate range
     if (cm < minDistance) {
       setStatus('too_close');
       setDistance(cm);
@@ -164,12 +131,11 @@ export function useDistanceEstimation(
 
   // Auto-start on mount if enabled
   useEffect(() => {
-    if (autoStart && capabilities.tier !== 'basic') {
-      // Small delay to let camera initialize
-      const timer = setTimeout(start, 500);
+    if (autoStart) {
+      const timer = setTimeout(start, 300);
       return () => clearTimeout(timer);
     }
-  }, [autoStart, capabilities.tier, start]);
+  }, [autoStart, start]);
 
   // Cleanup on unmount
   useEffect(() => {

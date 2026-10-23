@@ -18,4 +18,7 @@ declare module '@env' {
   // Apple Sign-In (optional)
   export const EXPO_PUBLIC_APPLE_SERVICE_ID: string;
 
+  // Google Analytics 4 web Measurement ID (optional — empty disables analytics)
+  export const EXPO_PUBLIC_GA_MEASUREMENT_ID: string;
+
 }

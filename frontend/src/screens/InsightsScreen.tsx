@@ -23,26 +23,28 @@ import { InsightCard } from '@/components/insights/InsightCard';
 import { InsightsOnboardingCard } from '@/components/insights/InsightsOnboardingCard';
 import { Text } from '@/components/Text';
 import { insightsApi } from '@/services/insightsApi';
+import { useAuthStore } from '@/stores/useAuthStore';
 import type { Insight } from '@/types/insights';
 import { BRAND_COLORS, spacing } from '@/utils';
 
-const LIST_KEY = ['insights', 'list'] as const;
-const COLD_KEY = ['insights', 'coldStart'] as const;
-
 export function InsightsScreen() {
+  const userId = useAuthStore((s) => s.userInfo?.userId);
+  const listKey = ['insights', userId, 'list'] as const;
+  const coldKey = ['insights', userId, 'coldStart'] as const;
   const navigation = useNavigation();
   const queryClient = useQueryClient();
 
   const coldStart = useQuery({
-    queryKey: COLD_KEY,
+    queryKey: coldKey,
     queryFn: insightsApi.coldStart,
+    enabled: !!userId,
     staleTime: 60_000,
   });
 
   const list = useQuery({
-    queryKey: LIST_KEY,
+    queryKey: listKey,
     queryFn: insightsApi.list,
-    enabled: coldStart.data?.unlocked ?? false,
+    enabled: !!userId && (coldStart.data?.unlocked ?? false),
     staleTime: 60_000,
   });
 
@@ -50,24 +52,24 @@ export function InsightsScreen() {
     mutationFn: (insight: Insight) =>
       insight.pinned ? insightsApi.unpin(insight.id) : insightsApi.pin(insight.id),
     onMutate: async (insight) => {
-      await queryClient.cancelQueries({ queryKey: LIST_KEY });
-      const prev = queryClient.getQueryData<Insight[]>(LIST_KEY);
-      queryClient.setQueryData<Insight[]>(LIST_KEY, (old) =>
+      await queryClient.cancelQueries({ queryKey: listKey });
+      const prev = queryClient.getQueryData<Insight[]>(listKey);
+      queryClient.setQueryData<Insight[]>(listKey, (old) =>
         (old ?? []).map((i) => (i.id === insight.id ? { ...i, pinned: !i.pinned } : i)),
       );
       return { prev };
     },
     onError: (_err, _insight, context) => {
-      if (context?.prev) queryClient.setQueryData(LIST_KEY, context.prev);
+      if (context?.prev) queryClient.setQueryData(listKey, context.prev);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: LIST_KEY }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: listKey }),
   });
 
   const recomputeMutation = useMutation({
     mutationFn: insightsApi.recompute,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: LIST_KEY });
-      queryClient.invalidateQueries({ queryKey: COLD_KEY });
+      queryClient.invalidateQueries({ queryKey: listKey });
+      queryClient.invalidateQueries({ queryKey: coldKey });
     },
   });
 
@@ -77,12 +79,14 @@ export function InsightsScreen() {
   );
 
   const handleRefresh = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: LIST_KEY });
-    queryClient.invalidateQueries({ queryKey: COLD_KEY });
-  }, [queryClient]);
+    queryClient.invalidateQueries({ queryKey: listKey });
+    queryClient.invalidateQueries({ queryKey: coldKey });
+  }, [queryClient, userId]);
 
   const isLoading = coldStart.isLoading || (coldStart.data?.unlocked && list.isLoading);
   const insights = list.data ?? [];
+
+  if (!userId) return null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

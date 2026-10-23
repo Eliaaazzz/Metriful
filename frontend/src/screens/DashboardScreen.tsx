@@ -25,14 +25,19 @@ import Animated, {
 } from 'react-native-reanimated';
 
 
-import { Barbell, Camera, CameraPlus, CaretRight, ChartLine, Drop, EnvelopeSimple, Fire, FlagCheckered, Grains, ImageSquare, Leaf, PencilSimple, PersonSimpleRun, Scales, Sneaker, Target, User } from 'phosphor-react-native';
+import { Barbell, CameraPlus, CaretRight, ChartLine, Drop, EnvelopeSimple, Fire, FlagCheckered, Grains, Leaf, NavigationArrow, PencilSimple, PersonSimpleRun, Scales, Sneaker, Target, User } from 'phosphor-react-native';
 import { Image } from 'expo-image';
 import { ScrollView as RNScrollView } from 'react-native';
-import { BentoCard, SafeAreaWrapper, Text } from '@/components';
+import { AchievementsCard, AdaptiveHomeHero, BentoCard, ChallengesCard, DetailBottomSheet, FriendsFeedCard, LogAgainCard, SafeAreaWrapper, Text, WeeklySummaryCard } from '@/components';
 import { BENTO_CARD_STYLES, BENTO_CARD_WEB_STYLES, MOBILE_CARD_STYLES } from '@/components/common/BentoCard';
 import { PermissionRequestModal, PermissionType } from '@/components/common/PermissionRequestModal';
 import { StateView } from '@/components/common/StateView';
 import { DailyScoreCard, DailyTasksCard, DashboardWidgets, NutritionInsightsCard, QuickActionsCard, StreakBadge, SuggestionGrid, WelcomeBar } from '@/components/dashboard';
+import { RecoveryMealCard } from '@/components/dashboard/RecoveryMealCard';
+import { ScanStatusChip } from '@/components/dashboard/ScanStatusChip';
+import { StreakSafetyCard } from '@/components/dashboard/StreakSafetyCard';
+import { WeeklyCheckinCard } from '@/components/dashboard/WeeklyCheckinCard';
+import { buildRingInsight, RingMacro } from '@/utils/ringInsight';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { ScreenLayout } from '@/components/layout';
 import { WeightLogModal } from '@/components/weight';
@@ -43,7 +48,8 @@ import WelcomeTourCard from '@/components/WelcomeTourCard';
 import { SNAP_MEAL_STEP, TODAYS_NUTRITION_STEP } from '@/config/tourSteps';
 import useCurrentUser from '@/hooks/useCurrentUser';
 import { useDailyNutrition } from '@/hooks/useDailyNutrition';
-import { useWeeklyInsights } from '@/hooks/useMealHistory';
+import { useMealHistory, useReLogMeal, useWeeklyInsights } from '@/hooks/useMealHistory';
+import { useAchievements } from '@/hooks/useAchievements';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useTourStatus } from '@/hooks/useTourStatus';
 import { GeneratedGoals, getActiveGoal, GoalType } from '@/services/geminiApi';
@@ -242,6 +248,46 @@ const DashboardScreen = () => {
 
   // Weekly insights for trend chart (web only)
   const weeklyInsights = useWeeklyInsights(undefined, true);
+
+  // F3 — "Log again" feed: pull last 7 days of meals, dedupe by name, surface top 3 most-recent.
+  const _sevenDaysAgo = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  }, []);
+  const reLogHistory = useMealHistory({ page: 0, size: 20, startDate: _sevenDaysAgo, sort: 'consumedAt,desc' }, true);
+  const reLogMeal = useReLogMeal('me');
+  const [reLogInFlight, setReLogInFlight] = useState<number | null>(null);
+  const logAgainMeals = useMemo(() => {
+    const all = reLogHistory.data?.content ?? [];
+    const seen = new Set<string>();
+    const out: typeof all = [];
+    for (const m of all) {
+      const key = (m.foodItems?.[0]?.displayName || m.mealType || '').toLowerCase().trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(m);
+      if (out.length >= 3) break;
+    }
+    return out;
+  }, [reLogHistory.data]);
+  const handleReLog = useCallback(async (meal: typeof logAgainMeals[number]) => {
+    setReLogInFlight(meal.id);
+    try {
+      await reLogMeal.mutateAsync(meal);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } finally {
+      setReLogInFlight(null);
+    }
+  }, [reLogMeal]);
+
+  // F6 — Achievements V2
+  const achievements = useAchievements({
+    currentStreak: currentUser.data?.currentStreak,
+  });
+  const [achievementDetail, setAchievementDetail] = useState<typeof achievements[number] | null>(null);
+  // Ring tap → where / why / what's-next sheet (rings as action entries, not gauges)
+  const [ringDetail, setRingDetail] = useState<RingMacro | null>(null);
 
   // Tour guide controller and navigation
   const { canStart, start, eventEmitter } = useTourGuideController();
@@ -593,29 +639,29 @@ const DashboardScreen = () => {
         title: 'Meal logging',
         body: 'Scan, review, and log meals with a faster photo-first flow.',
         illustration: illustrationScanMeal,
+        backgroundColor: '#FBE4D6',
         onPress: handleAddFood,
-        backgroundColor: '#E9F0FF',   // Blue
       },
       {
         title: 'Workouts',
         body: 'Browse exercise videos and track strength or cardio sessions.',
         illustration: illustrationWorkouts,
+        backgroundColor: '#DDEEFF',
         onPress: () => navigation.navigate('Main', { screen: 'Workouts' } as any),
-        backgroundColor: '#E0F5EF',   // Green/Mint
       },
       {
         title: 'Weight logging',
         body: 'Log weight, track trends, and export your progress charts.',
         illustration: illustrationWeekly,
+        backgroundColor: '#DDF3EC',
         onPress: () => navigation.navigate('Main', { screen: 'Profile', params: { screen: 'WeeklyInsights' } } as any),
-        backgroundColor: '#FFF1E7',   // Peach/Orange
       },
       {
         title: 'Recipes',
         body: 'Get recipes matched to your calorie and macro targets.',
         illustration: illustrationRecipes,
+        backgroundColor: '#D4F5E9',
         onPress: () => navigation.navigate('Main', { screen: 'Recipes' } as any),
-        backgroundColor: '#FFF7DD',   // Yellow
       },
     ];
     const recentMeals = nutritionData.meals.slice(0, 4);
@@ -646,6 +692,10 @@ const DashboardScreen = () => {
             showsVerticalScrollIndicator={false}
           >
             <View style={[webStyles.scrollStack, !isDashboardDesktop && webStyles.scrollStackMobile]}>
+              {/* Background meal-scan tracker (Uber Eats order-status pattern) */}
+              <ScanStatusChip />
+              {/* Training→nutrition bridge: shown for 2h after a finished workout session */}
+              <RecoveryMealCard onLogMeal={handleAddFood} />
               <View style={[webStyles.heroSection, !isDashboardDesktop && webStyles.heroSectionMobile, isDashboardCompact && webStyles.heroSectionCompact]}>
                 <View style={[webStyles.heroLeft, !isDashboardDesktop && webStyles.heroLeftMobile]}>
                 <View style={[webStyles.heroEyebrowRow, !isDashboardTablet && webStyles.heroEyebrowRowMobile]}>
@@ -678,97 +728,70 @@ const DashboardScreen = () => {
                 >
                   Build today&apos;s plan
                 </Text>
-                <Text style={isDashboardCompact ? [webStyles.heroSubtitle, webStyles.heroSubtitleCompact] : webStyles.heroSubtitle}>
-                  Log meals, hit your macros, and review weekly progress — all in one place.
-                </Text>
+                {/* Uber home widget: connected stop rows (● — ▪ — ◼) + one dark CTA + text link */}
+                <View style={webStyles.heroStops}>
+                  <View pointerEvents="none" style={webStyles.heroStopsRail}>
+                    <View style={webStyles.heroStopsLine} />
+                    <View style={webStyles.heroStopCircle}>
+                      <View style={webStyles.heroStopInnerDot} />
+                    </View>
+                    <View style={webStyles.heroStopMid} />
+                    <View style={webStyles.heroStopSquare}>
+                      <View style={webStyles.heroStopInnerSquare} />
+                    </View>
+                  </View>
 
-                <View style={webStyles.heroModePill}>
-                  <Text variant="body" weight="bold" style={webStyles.heroModePillText}>
-                    Start now
-                  </Text>
-                </View>
-
-                <TourGuideZone
-                  zone={SNAP_MEAL_STEP.zone}
-                  text={SNAP_MEAL_STEP.text}
-                  title={SNAP_MEAL_STEP.title}
-                  icon="📸"
-                >
-                  <Pressable
-                    onPress={handleOpenCamera}
-                    style={({ pressed }) => [webStyles.heroInputCard, !isDashboardDesktop && webStyles.heroInputCardMobile, pressed && webStyles.heroInputPressed]}
+                  <TourGuideZone
+                    zone={SNAP_MEAL_STEP.zone}
+                    text={SNAP_MEAL_STEP.text}
+                    title={SNAP_MEAL_STEP.title}
+                    icon="📸"
                   >
-                    <View style={webStyles.heroInputConnector}>
-                      <View style={webStyles.heroInputDot} />
-                      <View style={webStyles.heroInputLine} />
-                    </View>
-                    <View style={webStyles.heroInputIcon}>
-                      <Camera size={20} weight="regular" color="#111111" />
-                    </View>
-                    <View style={webStyles.heroInputCopy}>
-                      <Text variant="heading4" weight="semibold" style={webStyles.heroInputTitle}>
+                    <Pressable
+                      onPress={handleOpenCamera}
+                      style={({ pressed }) => [webStyles.heroStopRow, pressed && webStyles.heroInputPressed]}
+                    >
+                      <Text variant="body" style={webStyles.heroStopLabel}>
                         Take a photo
                       </Text>
-                      <Text variant="body" style={webStyles.heroInputBody}>
-                        Snap your plate with the camera.
-                      </Text>
-                    </View>
-                  </Pressable>
-                </TourGuideZone>
+                      <NavigationArrow size={20} weight="fill" color="#111111" />
+                    </Pressable>
+                  </TourGuideZone>
 
-                <Pressable
-                  onPress={handleAddFood}
-                  style={({ pressed }) => [webStyles.heroInputCard, !isDashboardDesktop && webStyles.heroInputCardMobile, pressed && webStyles.heroInputPressed]}
-                >
-                  <View style={[webStyles.heroInputConnector, webStyles.heroInputConnectorHidden]} />
-                  <View style={webStyles.heroInputIcon}>
-                    <ImageSquare size={20} weight="regular" color="#111111" />
-                  </View>
-                  <View style={webStyles.heroInputCopy}>
-                    <Text variant="heading4" weight="semibold" style={webStyles.heroInputTitle}>
+                  <Pressable
+                    onPress={handleAddFood}
+                    style={({ pressed }) => [webStyles.heroStopRow, pressed && webStyles.heroInputPressed]}
+                  >
+                    <Text variant="body" style={webStyles.heroStopLabel}>
                       Choose from library
                     </Text>
-                    <Text variant="body" style={webStyles.heroInputBody}>
-                      Select a meal photo from your gallery.
-                    </Text>
-                  </View>
-                </Pressable>
+                  </Pressable>
 
-                <Pressable
-                  onPress={() => navigation.navigate('Main', { screen: 'Workouts' } as any)}
-                  style={({ pressed }) => [webStyles.heroInputCard, !isDashboardDesktop && webStyles.heroInputCardMobile, pressed && webStyles.heroInputPressed]}
-                >
-                  <View style={[webStyles.heroInputConnector, webStyles.heroInputConnectorHidden]} />
-                  <View style={webStyles.heroInputIcon}>
-                    <Barbell size={20} weight="regular" color="#111111" />
-                  </View>
-                  <View style={webStyles.heroInputCopy}>
-                    <Text variant="heading4" weight="semibold" style={webStyles.heroInputTitle}>
+                  <Pressable
+                    onPress={() => navigation.navigate('Main', { screen: 'Workouts' } as any)}
+                    style={({ pressed }) => [webStyles.heroStopRow, webStyles.heroStopRowLast, pressed && webStyles.heroInputPressed]}
+                  >
+                    <Text variant="body" style={webStyles.heroStopLabel}>
                       Choose workout focus
                     </Text>
-                    <Text variant="body" style={webStyles.heroInputBody}>
-                      Strength, cardio, or recovery for today.
-                    </Text>
-                  </View>
-                </Pressable>
+                  </Pressable>
+                </View>
 
                 <View style={[webStyles.heroActions, !isDashboardTablet && webStyles.heroActionsMobile]}>
                   <Pressable
                     onPress={handleOpenCamera}
-                    style={({ pressed }) => [webStyles.heroPrimaryCta, !isDashboardTablet && webStyles.heroPrimaryCtaMobile, pressed && webStyles.heroCtaPressed]}
+                    style={({ pressed }) => [webStyles.heroPrimaryCta, pressed && webStyles.heroCtaPressed]}
                   >
-                    <Camera size={18} weight="bold" color="#FFFFFF" />
                     <Text variant="body" weight="bold" style={webStyles.heroPrimaryCtaText}>
-                      Take photo
+                      Scan meal
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={handleAddFood}
-                    style={({ pressed }) => [webStyles.heroPrimaryCta, !isDashboardTablet && webStyles.heroPrimaryCtaMobile, pressed && webStyles.heroCtaPressed, webStyles.heroSecondaryCta]}
+                    onPress={() => navigation.navigate('Main', { screen: 'Profile', params: { screen: 'MealHistory' } } as any)}
+                    style={({ pressed }) => [webStyles.heroInlineLink, pressed && webStyles.heroInlineLinkPressed]}
                   >
-                    <ImageSquare size={18} weight="bold" color="#111111" />
-                    <Text variant="body" weight="bold" style={[webStyles.heroPrimaryCtaText, webStyles.heroSecondaryCtaText]}>
-                      Choose photo
+                    <Text variant="body" weight="medium" style={webStyles.heroInlineLinkText}>
+                      See your recent meals
                     </Text>
                   </Pressable>
                 </View>
@@ -782,7 +805,68 @@ const DashboardScreen = () => {
                   >
                     Suggestions
                   </Text>
-                  <SuggestionGrid cards={suggestionCards} />
+                  {/* F5 — Adaptive Home Hero (time-of-day morphing) */}
+                  <AdaptiveHomeHero
+                    userName={currentUser.data?.username?.split(' ')[0]}
+                    caloriesConsumed={nutritionData.calories}
+                    caloriesTarget={calorieGoal}
+                    proteinConsumed={nutritionData.protein.current}
+                    proteinTarget={proteinGoal}
+                    mealsLoggedToday={nutritionData.meals.length}
+                    onPrimaryAction={handleAddFood}
+                    onSecondaryAction={() => navigation.navigate('Main', { screen: 'Recipes' } as any)}
+                    compact={isDashboardCompact}
+                  />
+
+                  {/* Streak with safety rails: pause for trips/illness, fresh-start zero copy */}
+                  <StreakSafetyCard streak={currentUser.data?.currentStreak ?? 0} />
+                </View>
+              </View>
+
+              {/* Full-width engagement band below the hero. Order follows Uber Eats
+                  (quick-access shelf, then reorder) and Strava (trophy case,
+                  challenges, social feed). */}
+              <View style={[webStyles.engageSection, !isDashboardDesktop && webStyles.engageSectionMobile]}>
+                <SuggestionGrid cards={suggestionCards} />
+
+                {/* F3 — Log again (Uber Eats "Order again" shelf) */}
+                <LogAgainCard
+                  meals={logAgainMeals}
+                  isLoading={reLogHistory.isLoading}
+                  onReLog={handleReLog}
+                  inFlightMealId={reLogInFlight}
+                />
+
+                {/* Insights band: weekly check-in + Sunday recap side by side */}
+                <View style={[webStyles.insightsRow, !isDashboardDesktop && webStyles.insightsRowMobile]}>
+                  <View style={webStyles.insightsCol}>
+                    <WeeklyCheckinCard insights={weeklyInsights.data} proteinGoal={proteinGoal} />
+                  </View>
+                  <View style={webStyles.insightsCol}>
+                    <WeeklySummaryCard
+                      insights={weeklyInsights.data}
+                      isLoading={weeklyInsights.isLoading}
+                      userName={currentUser.data?.username?.split(' ')[0]}
+                    />
+                  </View>
+                </View>
+
+                {/* F10 — Challenges (Strava challenge discovery row) */}
+                <ChallengesCard limit={3} />
+
+                {/* Achievements + Friends feed share one full-width row */}
+                <View style={[webStyles.insightsRow, !isDashboardDesktop && webStyles.insightsRowMobile]}>
+                  <View style={webStyles.insightsCol}>
+                    {/* F6 — Achievements V2 (Strava trophy case) */}
+                    <AchievementsCard
+                      achievements={achievements}
+                      onTap={(a) => setAchievementDetail(a)}
+                    />
+                  </View>
+                  <View style={webStyles.insightsCol}>
+                    {/* F9 — Friends Activity Feed (Strava social feed) */}
+                    <FriendsFeedCard limit={4} />
+                  </View>
                 </View>
               </View>
 
@@ -1006,7 +1090,7 @@ const DashboardScreen = () => {
                       fat: { current: nutritionData.fat.current, target: fatGoal },
                     }}
                     showFat={true}
-                    onMacroPress={handleMacroSearch}
+                    onMacroPress={(macro) => setRingDetail(macro)}
                     onSourcesPress={() => navigation.navigate('AboutNutritionData' as any)}
                   />
                 )}
@@ -1330,7 +1414,7 @@ const DashboardScreen = () => {
             bloodSugarRise: nutritionData.bloodSugarRise,
           }}
           showFat={true}
-          onMacroPress={handleMacroSearch}
+          onMacroPress={(macro) => setRingDetail(macro)}
           onSourcesPress={() => navigation.navigate('AboutNutritionData' as any)}
         />
       )}
@@ -1354,7 +1438,114 @@ const DashboardScreen = () => {
     />
   );
 
-  return renderSharedDashboard();
+  return (
+    <>
+      {renderSharedDashboard()}
+      <DetailBottomSheet
+        visible={!!achievementDetail}
+        onClose={() => setAchievementDetail(null)}
+        title={achievementDetail?.label}
+        maxHeightRatio={0.55}
+      >
+        {achievementDetail ? (
+          <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md }}>
+            <View
+              style={{
+                width: 96,
+                height: 96,
+                borderRadius: 48,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: achievementDetail.unlocked ? '#FFF3D6' : 'rgba(17,17,17,0.06)',
+                borderWidth: 3,
+                borderColor: achievementDetail.unlocked ? '#F8C24F' : 'rgba(17,17,17,0.10)',
+              }}
+            >
+              <Text style={{ fontSize: 40 }}>
+                {achievementDetail.unlocked ? achievementDetail.emoji : '🔒'}
+              </Text>
+            </View>
+            <Text variant="heading3" weight="bold" style={{ textAlign: 'center' }}>
+              {achievementDetail.label}
+            </Text>
+            <Text variant="body" style={{ textAlign: 'center', color: '#666' }}>
+              {achievementDetail.description}
+            </Text>
+            <View
+              style={{
+                width: '90%',
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: 'rgba(17,17,17,0.08)',
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                style={{
+                  width: `${Math.round(achievementDetail.progress * 100)}%`,
+                  height: '100%',
+                  backgroundColor: '#F97316',
+                }}
+              />
+            </View>
+            <Text variant="caption" weight="semibold" style={{ color: '#666' }}>
+              {achievementDetail.unlocked
+                ? 'Unlocked'
+                : `${Math.round(achievementDetail.progress * 100)}% complete`}
+            </Text>
+          </View>
+        ) : null}
+      </DetailBottomSheet>
+
+      {/* Ring detail: where / why / what's next (rings as action entries, Whoop/Oura pattern) */}
+      <DetailBottomSheet
+        visible={!!ringDetail}
+        onClose={() => setRingDetail(null)}
+        title={ringDetail ? buildRingInsight(nutritionData, ringDetail).title : undefined}
+        maxHeightRatio={0.55}
+      >
+        {ringDetail ? (() => {
+          const insight = buildRingInsight(nutritionData, ringDetail);
+          return (
+            <View style={{ gap: spacing.md, paddingVertical: spacing.sm }}>
+              <View style={{ gap: 4 }}>
+                <Text variant="label" weight="bold" style={{ color: '#9A8F80' }}>WHERE YOU ARE</Text>
+                <Text variant="heading3" weight="bold">{insight.whereLine}</Text>
+              </View>
+              <View style={{ gap: 4 }}>
+                <Text variant="label" weight="bold" style={{ color: '#9A8F80' }}>WHY</Text>
+                <Text variant="body" style={{ color: '#3E3C38' }}>{insight.whyLine}</Text>
+              </View>
+              <View style={{ gap: 4 }}>
+                <Text variant="label" weight="bold" style={{ color: '#9A8F80' }}>NEXT</Text>
+                <Text variant="body" style={{ color: '#3E3C38' }}>{insight.nextLine}</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  const macro = ringDetail;
+                  setRingDetail(null);
+                  if (macro) handleMacroSearch(macro);
+                }}
+                style={{
+                  minHeight: 46,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: 'rgba(17,17,17,0.12)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#FFFFFF',
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Find recipes for ${ringDetail}`}
+              >
+                <Text variant="body" weight="semibold">Find matching recipes</Text>
+              </Pressable>
+            </View>
+          );
+        })() : null}
+      </DetailBottomSheet>
+    </>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -2146,105 +2337,109 @@ const webStyles = StyleSheet.create({
   },
   heroTitle: {
     color: '#111111',
-    fontSize: 72,
-    lineHeight: 74,
-    letterSpacing: -2.8,
+    fontSize: 52,
+    lineHeight: 62,
+    letterSpacing: -1.5,
     maxWidth: 520,
   },
   heroTitleMobile: {
-    fontSize: 46,
+    fontSize: 40,
     lineHeight: 48,
-    letterSpacing: -1.8,
+    letterSpacing: -1.2,
   },
   heroTitleCompact: {
-    fontSize: 38,
+    fontSize: 34,
     lineHeight: 40,
-    letterSpacing: -1.4,
+    letterSpacing: -1,
   },
-  heroSubtitle: {
-    color: '#4B4B4B',
-    fontSize: 18,
-    lineHeight: 30,
-    marginTop: 20,
-    maxWidth: 520,
-  },
-  heroSubtitleCompact: {
-    fontSize: 16,
-    lineHeight: 26,
-  },
-  heroModePill: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#EFEFEF',
-    borderRadius: 999,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    marginTop: 28,
-    marginBottom: 24,
-  },
-  heroModePillText: {
-    color: '#111111',
-  },
-  heroInputCard: {
+  // Uber home widget stop rows: fixed 56px rows + 12px gaps so the rail glyphs
+  // (row centers at 28 / 96 / 164) and the connecting line stay aligned.
+  heroStops: {
     position: 'relative',
+    marginTop: 32,
+    maxWidth: 480,
+    alignSelf: 'stretch',
+  },
+  heroStopsRail: {
+    position: 'absolute',
+    left: 16,
+    top: 0,
+    bottom: 0,
+    width: 10,
+    zIndex: 2,
+  },
+  heroStopsLine: {
+    position: 'absolute',
+    left: 4,
+    width: 2,
+    top: 28,
+    bottom: 28,
+    backgroundColor: '#111111',
+  },
+  heroStopCircle: {
+    position: 'absolute',
+    left: 0,
+    top: 23,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#111111',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroStopMid: {
+    position: 'absolute',
+    left: 2,
+    top: 93,
+    width: 6,
+    height: 6,
+    backgroundColor: '#111111',
+  },
+  heroStopSquare: {
+    position: 'absolute',
+    left: 0,
+    top: 159,
+    width: 10,
+    height: 10,
+    backgroundColor: '#111111',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroStopInnerDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#FFFFFF',
+  },
+  heroStopInnerSquare: {
+    width: 3,
+    height: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  heroStopRow: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    marginBottom: spacing.md,
+    justifyContent: 'space-between',
+    backgroundColor: '#F3F3F3',
+    borderRadius: 8,
+    paddingLeft: 40,
+    paddingRight: 16,
+    marginBottom: 12,
     ...(Platform.OS === 'web' && {
       cursor: 'pointer' as any,
       transition: 'background-color 0.15s ease-out',
     }),
   },
-  heroInputCardMobile: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+  heroStopRowLast: {
+    marginBottom: 0,
+  },
+  heroStopLabel: {
+    color: '#5E5E5E',
+    fontSize: 16,
   },
   heroInputPressed: {
     backgroundColor: '#ECECEC',
-  },
-  heroInputConnector: {
-    position: 'absolute',
-    left: 20,
-    top: 0,
-    bottom: -20,
-    width: 16,
-    alignItems: 'center',
-  },
-  heroInputConnectorHidden: {
-    opacity: 0,
-  },
-  heroInputDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#111111',
-    marginTop: 8,
-  },
-  heroInputLine: {
-    width: 1,
-    flex: 1,
-    marginTop: 4,
-    backgroundColor: '#111111',
-  },
-  heroInputIcon: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 18,
-  },
-  heroInputCopy: {
-    flex: 1,
-  },
-  heroInputTitle: {
-    color: '#111111',
-    marginBottom: 2,
-  },
-  heroInputBody: {
-    color: '#6B6B6B',
   },
   heroActions: {
     flexDirection: 'row',
@@ -2256,32 +2451,18 @@ const webStyles = StyleSheet.create({
     gap: spacing.md,
   },
   heroPrimaryCta: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     backgroundColor: '#111111',
-    paddingHorizontal: 36,
-    paddingVertical: 18,
-    borderRadius: 12,
+    paddingHorizontal: 24,
+    height: 48,
+    borderRadius: 8,
     ...(Platform.OS === 'web' && {
       cursor: 'pointer' as any,
     }),
   },
-  heroPrimaryCtaMobile: {
-    flex: 1,
-    flexBasis: 0,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
   heroPrimaryCtaText: {
     color: '#FFFFFF',
-  },
-  heroSecondaryCta: {
-    backgroundColor: '#F3F3F3',
-  },
-  heroSecondaryCtaText: {
-    color: '#111111',
   },
   heroSecondaryLink: {
     borderBottomWidth: 1,
@@ -2300,6 +2481,32 @@ const webStyles = StyleSheet.create({
   heroRight: {
     flex: 1.05,
     paddingTop: 92,
+  },
+  // Full-width band under the hero for shelves and feeds (same page gutter as heroSection)
+  engageSection: {
+    maxWidth: 1360,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 24,
+  },
+  engageSectionMobile: {
+    paddingHorizontal: spacing.md,
+  },
+  insightsRow: {
+    flexDirection: 'row',
+    gap: 24,
+    alignItems: 'flex-start',
+    marginVertical: spacing.md,
+  },
+  insightsRowMobile: {
+    flexDirection: 'column',
+    gap: 0,
+  },
+  insightsCol: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: 'stretch',
   },
   heroLeftMobile: {
     flexBasis: 'auto' as any,
@@ -2599,10 +2806,9 @@ const webStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 16,
-    borderRadius: 18,
+    borderRadius: 12,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(17,17,17,0.06)',
+    backgroundColor: '#F6F6F6',
     ...(Platform.OS === 'web' && {
       cursor: 'pointer' as any,
     }),

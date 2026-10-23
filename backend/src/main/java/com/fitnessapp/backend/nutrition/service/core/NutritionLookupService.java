@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,8 +17,9 @@ import com.fitnessapp.backend.nutrition.dto.NutritionInfo;
 import com.fitnessapp.backend.nutrition.entity.FoodNutrition;
 import com.fitnessapp.backend.nutrition.enums.CookingMethod;
 import com.fitnessapp.backend.nutrition.repository.FoodNutritionRepository;
+import com.fitnessapp.backend.nutrition.service.usda.UsdaFoodDataClient;
+import com.fitnessapp.backend.nutrition.service.usda.UsdaNutritionCache;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -28,11 +31,12 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class NutritionLookupService {
 
     private final FoodNutritionRepository foodNutritionRepository;
     private final FoodKeyNormalizer foodKeyNormalizer;
+    private final UsdaFoodDataClient usdaFoodDataClient;
+    private final UsdaNutritionCache usdaNutritionCache;
 
     // Default nutrition for unknown foods (per 100g)
     private static final NutritionInfo DEFAULT_NUTRITION = NutritionInfo.builder()
@@ -42,13 +46,43 @@ public class NutritionLookupService {
             .carbs(new java.math.BigDecimal("15.0"))
             .build();
 
+    public NutritionLookupService(FoodNutritionRepository foodNutritionRepository,
+                                  FoodKeyNormalizer foodKeyNormalizer) {
+        this(foodNutritionRepository,
+                foodKeyNormalizer,
+                (UsdaFoodDataClient) null,
+                (UsdaNutritionCache) null);
+    }
+
+    @Autowired
+    public NutritionLookupService(FoodNutritionRepository foodNutritionRepository,
+                                  FoodKeyNormalizer foodKeyNormalizer,
+                                  ObjectProvider<UsdaFoodDataClient> usdaFoodDataClientProvider,
+                                  ObjectProvider<UsdaNutritionCache> usdaNutritionCacheProvider) {
+        this(foodNutritionRepository,
+                foodKeyNormalizer,
+                usdaFoodDataClientProvider.getIfAvailable(),
+                usdaNutritionCacheProvider.getIfAvailable());
+    }
+
+    public NutritionLookupService(FoodNutritionRepository foodNutritionRepository,
+                                  FoodKeyNormalizer foodKeyNormalizer,
+                                  UsdaFoodDataClient usdaFoodDataClient,
+                                  UsdaNutritionCache usdaNutritionCache) {
+        this.foodNutritionRepository = foodNutritionRepository;
+        this.foodKeyNormalizer = foodKeyNormalizer;
+        this.usdaFoodDataClient = usdaFoodDataClient;
+        this.usdaNutritionCache = usdaNutritionCache;
+    }
+
     /**
      * Look up nutrition by food key with fallback strategies:
      * 1. NLP normalization and phrase mapping
      * 2. Exact match on food_key
      * 3. Fuzzy match on food_key (pg_trgm, with fallback to LIKE)
      * 4. Fuzzy match on display name (pg_trgm, with fallback to LIKE)
-     * 5. Default nutrition
+     * 5. USDA FoodData Central fallback
+     * 6. Default nutrition
      */
     @Transactional(readOnly = true)
     public NutritionInfo lookupNutrition(String foodKey) {
@@ -85,7 +119,14 @@ public class NutritionLookupService {
             return toNutritionInfo(keywordMatches.get(0));
         }
 
-        // Strategy 5: Default
+        // Strategy 5: USDA FoodData Central fallback
+        Optional<NutritionInfo> usdaNutrition = lookupUsdaNutrition(normalizedKey);
+        if (usdaNutrition.isPresent()) {
+            log.info("Found USDA FoodData Central fallback for {}", normalizedKey);
+            return usdaNutrition.get();
+        }
+
+        // Strategy 6: Default
         log.warn("No nutrition data found for: {}, using default", foodKey);
         return DEFAULT_NUTRITION;
     }
@@ -107,13 +148,30 @@ public class NutritionLookupService {
         log.debug("Looking up nutrition with metadata: base={}, form={}, method={}", 
                 metadata.getBaseIngredient(), metadata.getForm(), metadata.getCookingMethodStr());
 
-        for (String candidate : buildSearchCandidates(metadata)) {
+        List<String> searchCandidates = buildSearchCandidates(metadata);
+        for (String candidate : searchCandidates) {
             Optional<NutritionInfo> candidateNutrition = lookupNutritionOptional(candidate);
             if (candidateNutrition.isEmpty()) {
                 continue;
             }
 
             NutritionInfo nutrition = candidateNutrition.get();
+            CookingMethod method = metadata.getCookingMethod();
+            if (method != null && method != CookingMethod.UNKNOWN) {
+                return applyCookingMethodMultiplier(nutrition, method);
+            }
+
+            return nutrition;
+        }
+
+        for (String candidate : searchCandidates) {
+            String normalizedKey = foodKeyNormalizer.normalize(candidate);
+            Optional<NutritionInfo> usdaNutrition = lookupUsdaNutrition(normalizedKey);
+            if (usdaNutrition.isEmpty()) {
+                continue;
+            }
+
+            NutritionInfo nutrition = usdaNutrition.get();
             CookingMethod method = metadata.getCookingMethod();
             if (method != null && method != CookingMethod.UNKNOWN) {
                 return applyCookingMethodMultiplier(nutrition, method);
@@ -171,6 +229,20 @@ public class NutritionLookupService {
         }
 
         return Optional.empty();
+    }
+
+    private Optional<NutritionInfo> lookupUsdaNutrition(String normalizedKey) {
+        if (normalizedKey == null || normalizedKey.isBlank()
+                || usdaFoodDataClient == null
+                || usdaNutritionCache == null
+                || !usdaFoodDataClient.isAvailable()) {
+            return Optional.empty();
+        }
+
+        NutritionInfo nutrition = usdaNutritionCache.get(
+                normalizedKey,
+                () -> usdaFoodDataClient.search(normalizedKey));
+        return Optional.ofNullable(nutrition);
     }
 
     /**

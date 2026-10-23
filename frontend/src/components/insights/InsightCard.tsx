@@ -64,7 +64,14 @@ export function InsightCard({ insight, onPress, onTogglePin }: InsightCardProps)
                 confidence={insight.confidence}
                 sample={insight.sampleYes + insight.sampleNo}
               />
-              <Pressable onPress={handlePin} hitSlop={8} style={styles.pinButton}>
+              <Pressable
+                onPress={handlePin}
+                hitSlop={8}
+                style={styles.pinButton}
+                accessibilityRole="button"
+                accessibilityLabel={insight.pinned ? 'Unpin insight' : 'Pin insight'}
+                testID={`insight-pin-${insight.id}`}
+              >
                 <PushPin
                   size={14}
                   color={insight.pinned ? BRAND_COLORS.primary : BRAND_COLORS.textMuted}

@@ -13,7 +13,7 @@
 --                          size) plus user-controllable pin / dismiss state.
 -- ============================================================================
 
-CREATE TABLE user_behavior_days (
+CREATE TABLE IF NOT EXISTS user_behavior_days (
     user_id      UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     day          DATE         NOT NULL,
     behavior_key VARCHAR(64)  NOT NULL,
@@ -22,13 +22,13 @@ CREATE TABLE user_behavior_days (
     PRIMARY KEY (user_id, day, behavior_key)
 );
 
-CREATE INDEX idx_ubd_user_behavior_day
+CREATE INDEX IF NOT EXISTS idx_ubd_user_behavior_day
     ON user_behavior_days(user_id, behavior_key, day DESC);
 
-CREATE INDEX idx_ubd_user_day
+CREATE INDEX IF NOT EXISTS idx_ubd_user_day
     ON user_behavior_days(user_id, day DESC);
 
-CREATE TABLE behavior_insights (
+CREATE TABLE IF NOT EXISTS behavior_insights (
     id              BIGSERIAL    PRIMARY KEY,
     user_id         UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     behavior_key    VARCHAR(64)  NOT NULL,
@@ -44,5 +44,5 @@ CREATE TABLE behavior_insights (
     UNIQUE (user_id, behavior_key)
 );
 
-CREATE INDEX idx_insights_user_pinned ON behavior_insights(user_id, pinned);
-CREATE INDEX idx_insights_user_computed ON behavior_insights(user_id, computed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_insights_user_pinned ON behavior_insights(user_id, pinned);
+CREATE INDEX IF NOT EXISTS idx_insights_user_computed ON behavior_insights(user_id, computed_at DESC);

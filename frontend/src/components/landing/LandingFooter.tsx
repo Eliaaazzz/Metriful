@@ -4,9 +4,9 @@ import React from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { Text } from '@/components';
-import { APP_NAME, BRAND_COLORS, EXPERIENCE_COLORS, LANDING_COLORS, radii, spacing } from '@/utils';
+import { APP_NAME, LANDING_COLORS, LANDING_TYPE, spacing } from '@/utils';
 
-const finalIllustration = require('@/../assets/illustrations/chef.svg');
+const finalIllustration = require('@/../assets/illustrations/fruit-salad.svg');
 
 interface LandingFooterProps {
   onGetStarted: () => void;
@@ -99,7 +99,7 @@ export function LandingFooter({ onGetStarted, onLogin, showFinalCTA = true, onLi
               weight="bold"
               style={isDesktop ? [styles.finalTitle] : isCompact ? [styles.finalTitle, styles.finalTitleMobile, styles.finalTitleCompact] : [styles.finalTitle, styles.finalTitleMobile]}
             >
-              Start today. Join thousands tracking smarter with AI.
+              Start with one photo.
             </Text>
             <Text
               variant="heading4"
@@ -133,7 +133,7 @@ export function LandingFooter({ onGetStarted, onLogin, showFinalCTA = true, onLi
               </Text>
             </View>
             <Text variant="heading4" style={styles.brandTagline}>
-              Fitness tracking for people who actually track.
+              The meal scanner that shows its work.
             </Text>
           </View>
 
@@ -177,7 +177,8 @@ export function LandingFooter({ onGetStarted, onLogin, showFinalCTA = true, onLi
         </View>
 
         <Text variant="caption" style={styles.legal}>
-          © 2026 {APP_NAME}. Privacy · Accessibility · Terms
+          © 2026 {APP_NAME} by Aura Fitness · AI numbers are estimates — verify with a healthcare
+          professional · Illustrations by Storyset
         </Text>
       </View>
     </View>
@@ -199,10 +200,10 @@ const styles = StyleSheet.create({
   },
   finalVisual: {
     flex: 1,
-    backgroundColor: EXPERIENCE_COLORS.glassStrong,
-    borderRadius: 30,
+    backgroundColor: LANDING_COLORS.surface,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: EXPERIENCE_COLORS.stroke,
+    borderColor: LANDING_COLORS.borderSoft,
     minHeight: 420,
     alignItems: 'center',
     justifyContent: 'center',
@@ -231,10 +232,11 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   finalTitle: {
-    color: EXPERIENCE_COLORS.ink,
-    fontSize: 60,
-    lineHeight: 62,
-    letterSpacing: -2.3,
+    color: LANDING_COLORS.text,
+    fontFamily: LANDING_TYPE.display,
+    fontSize: 52,
+    lineHeight: 56,
+    letterSpacing: -2,
   },
   finalTitleMobile: {
     fontSize: 40,
@@ -247,9 +249,10 @@ const styles = StyleSheet.create({
     letterSpacing: -1.1,
   },
   finalSubtitle: {
-    color: EXPERIENCE_COLORS.inkSoft,
-    fontSize: 20,
-    lineHeight: 32,
+    color: LANDING_COLORS.textMuted,
+    fontFamily: LANDING_TYPE.body,
+    fontSize: 17.5,
+    lineHeight: 28,
     maxWidth: 520,
   },
   finalSubtitleMobile: {
@@ -264,10 +267,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   primaryCta: {
-    backgroundColor: EXPERIENCE_COLORS.ink,
+    backgroundColor: LANDING_COLORS.ctaBg,
     paddingHorizontal: 28,
-    paddingVertical: 18,
-    borderRadius: 22,
+    paddingVertical: 17,
+    borderRadius: 12,
   },
   primaryCtaText: {
     color: LANDING_COLORS.ctaText,
@@ -279,12 +282,12 @@ const styles = StyleSheet.create({
     borderBottomColor: LANDING_COLORS.borderLink,
   },
   secondaryLinkText: {
-    color: EXPERIENCE_COLORS.ink,
+    color: LANDING_COLORS.text,
   },
   footer: {
-    backgroundColor: EXPERIENCE_COLORS.navy,
-    borderRadius: 32,
-    paddingHorizontal: spacing.lg,
+    backgroundColor: LANDING_COLORS.footerBg,
+    borderRadius: 24,
+    paddingHorizontal: spacing.xl,
     paddingVertical: spacing['2xl'],
   },
   footerTop: {
@@ -320,7 +323,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   columnTitle: {
-    color: LANDING_COLORS.textOnDark,
+    color: LANDING_COLORS.textOnDarkFaint,
+    fontFamily: LANDING_TYPE.mono,
+    fontSize: 10.5,
+    letterSpacing: 1.7,
+    textTransform: 'uppercase',
     marginBottom: spacing.sm,
   },
   footerLink: {

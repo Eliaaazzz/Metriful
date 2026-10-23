@@ -1,7 +1,8 @@
 import type { RecipeImageUrls } from '@/utils/spoonacular';
 import { FALLBACK_RECIPE_IMAGE } from '@/utils/spoonacular';
+import { Image as ExpoImage } from 'expo-image';
 import React, { useCallback, useState } from 'react';
-import { Image, ImageStyle, Platform, StyleSheet, View, ViewStyle } from 'react-native';
+import { ImageStyle, Platform, StyleSheet, View, ViewStyle } from 'react-native';
 
 // ============================================================================
 // Types
@@ -90,18 +91,14 @@ export const RecipeImage: React.FC<RecipeImageProps> = ({
 
   const imageUrl = hasError ? FALLBACK_RECIPE_IMAGE : getImageUrl();
 
-  const handleLoadStart = useCallback(() => {
-    setIsLoading(true);
-  }, []);
-
-  const handleLoadEnd = useCallback(() => {
+  const handleLoad = useCallback(() => {
     setIsLoading(false);
   }, []);
 
   const handleError = useCallback(() => {
     setHasError(true);
     setIsLoading(false);
-    
+
     if (onLoadError) {
       onLoadError(new Error(`Failed to load image: ${imageUrl}`));
     }
@@ -111,21 +108,22 @@ export const RecipeImage: React.FC<RecipeImageProps> = ({
     <View style={[styles.container, { borderRadius }, style]}>
       {/* Placeholder background */}
       {showPlaceholder && isLoading && (
-        <View 
+        <View
           style={[
-            styles.placeholder, 
+            styles.placeholder,
             { borderRadius, backgroundColor: PLACEHOLDER_COLOR }
-          ]} 
+          ]}
         />
       )}
-      
-      {/* Actual image */}
-      <Image
+
+      {/* Actual image (expo-image: memory+disk cache, smooth transition) */}
+      <ExpoImage
         source={{ uri: imageUrl }}
         style={[styles.image, { borderRadius }, imageStyle]}
-        resizeMode="cover"
-        onLoadStart={handleLoadStart}
-        onLoadEnd={handleLoadEnd}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={200}
+        onLoad={handleLoad}
         onError={handleError}
         accessibilityLabel={accessibilityLabel || 'Recipe image'}
         accessible

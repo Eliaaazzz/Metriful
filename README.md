@@ -27,7 +27,7 @@
 ![Cloud Run](https://img.shields.io/badge/GCP_Cloud_Run-au--southeast2-4285F4?style=flat-square&logo=googlecloud&logoColor=white)
 ![Cloudflare R2](https://img.shields.io/badge/Cloudflare_R2-Object_Storage-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 
-[**Live App**](https://aurafitness.org) · [**App Store**](https://apps.apple.com/app/metriful/id6760930295) · [**Architecture**](#architecture) · [**AI Pipeline**](#the-three-model-ai-pipeline) · [**Design Philosophy**](#design-philosophy--every-component-is-intentional) · [**Engineering Highlights**](#engineering-highlights)
+[**Live App**](https://aurafitness.org) · [**App Store**](https://apps.apple.com/app/metriful/id6760930295) · [**Measured Accuracy + LiDAR**](#measured-accuracy-and-the-depth-sensor-behind-it) · [**Architecture**](#architecture) · [**AI Pipeline**](#the-three-model-ai-pipeline) · [**Design Philosophy**](#design-philosophy--every-component-is-intentional) · [**Engineering Highlights**](#engineering-highlights)
 
 </div>
 
@@ -137,6 +137,67 @@ Secondary positioning: **T2D / metabolic health** users who need consistent low-
 - **Gemini Vision** — cheapest top-tier multimodal for food recognition; $0.0001/image.
 - **Gemini LLM** — long context (1M tokens) lets us pass the user's full week of history into goal generation in a single call.
 - **OpenAI text-embedding-3-small** — the cosine-similarity gold standard for recipe vector search; embeddings cached forever in `pgvector` so cost is one-time per recipe.
+
+---
+
+## Measured accuracy, and the depth sensor behind it
+
+Photo→calorie is the product's core claim, so it is benchmarked rather than asserted.
+Full method and results: **[calorie-accuracy-investigation.md](docs/calorie-accuracy-investigation.md)**
+(benchmarks, failed levers, latency) and **[calorie-accuracy-roadmap-25-to-15.md](docs/calorie-accuracy-roadmap-25-to-15.md)**
+(what a further 25%→15% would take, and why per-meal 15% is not honest to promise).
+
+**The diagnosis came before the fix.** Across three independent Western benchmarks
+(Nutrition5k, MetaFood3D, SimpleFood45 — all weighed ground truth) the portion error
+*flips sign*: small servings are over-estimated, large ones under-estimated. That structure
+held across capture rigs, cuisines and kitchens, which made it worth more than any
+parameter fit.
+
+**What ships.** A scene-level geometric-mean blend of the model's own estimate and a
+physics estimate — `volume × FNDDS density × energy density` — where volume comes from the
+phone's depth sensor. Two global constants, no per-user or per-domain calibration:
+[`CaloriePhysicsRefinementService`](backend/src/main/java/com/fitnessapp/backend/nutrition/service/core/CaloriePhysicsRefinementService.java)
+· [tests](backend/src/test/java/com/fitnessapp/backend/nutrition/service/core/CaloriePhysicsRefinementServiceTest.java)
+(the suite is mostly no-op safety: missing volume, disabled config, noise-level readings
+and bad clamp config must all leave the estimate untouched).
+
+| | median calorie APE |
+|---|---|
+| raw model, hard domain | 30.5 % |
+| **+ physics blend, zero-shot** (fit on cafe1 n=100, evaluated on cafe2 n=60, never tuned on it) | **27.7 %** |
+| per-day aggregate (what weight management actually acts on) | **< 20 %** |
+| oracle floor with perfect mass | 15.9 % |
+
+**Negative results are in here too**, because they constrain the design more than the wins:
+
+- **Per-item beats whole-plate — it doesn't.** Splitting a mixed plate and correcting each
+  food separately measured **23.3 % vs 16.2 %** for whole-plate (N5k, n=100): per-food energy
+  density amplifies partition noise, where a blended density averages it out. Shipped
+  **default off**, with the measurement recorded next to the flag in [`application.yml`](backend/src/main/resources/application.yml).
+- **Depth is not decorative.** On 2D benchmarks with no depth, the same correction fails
+  outright (31.5 % → 35–38 %). The no-depth datasets are the negative control.
+
+**Boundaries, stated up front:** per-meal cross-domain **< 20 % is not achieved** (17.5 % on
+the easy domain, 27.7 % on the hard one); `<5s` is single-request latency, not a load-tested
+P99; on-device work is depth→scale only, with volume geometry offline; per-item accuracy on
+real mixed plates is **unmeasured** on device. The benchmark harness itself is not in this
+repo — it ran against datasets (Nutrition5k, MetaFood3D, SimpleFood45, NutritionVerse) that
+carry their own distribution terms.
+
+### Where the LiDAR code lives
+
+> **Looking for a depth package in `frontend/package.json`? There isn't one, and there
+> shouldn't be.** Expo *local* native modules are autolinked from `frontend/modules/` via
+> `expo-module.config.json` + `use_expo_modules!` — they never appear as npm dependencies.
+> The Swift is in the tree:
+
+| | |
+|---|---|
+| [`modules/metriful-lidar/ios/MetrifulLidarModule.swift`](frontend/modules/metriful-lidar/ios/MetrifulLidarModule.swift) | `builtInLiDARDepthCamera` + `AVCaptureDepthDataOutput`; camera intrinsics (`fx`) turn pixels into cm → `volumeCm3` / `areaCm2` / `meanHCm` |
+| [`native-depth-plugin/ios/ARScaleModule.swift`](frontend/native-depth-plugin/ios/ARScaleModule.swift) | ARKit scale fallback for non-LiDAR devices |
+| [`src/hooks/useLidarScale.ts`](frontend/src/hooks/useLidarScale.ts) | samples depth once at capture and attaches it to the upload metadata |
+
+Requires an `eas build` on a LiDAR-equipped iPhone; it is not exercised by Expo Go or by CI.
 
 ---
 

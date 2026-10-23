@@ -1,4 +1,5 @@
 import { TourGuideZone } from '@/components/tour/TourProvider';
+import { Image as ExpoImage } from 'expo-image';
 import { WarningCircle } from 'phosphor-react-native';
 import { useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -6,11 +7,12 @@ import { FlatList, NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshCon
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { FAB } from 'react-native-paper';
 
-import { Container, EmptyStateCard, ListSkeleton, RecipeCard, ResponsiveGrid, SafeAreaWrapper, SearchBar, SearchSuggestions, Text, type SuggestionItem } from '@/components';
+import { Container, DetailBottomSheet, EmptyStateCard, FilterChipBar, type FilterChip, HorizontalRecipeRow, ListSkeleton, RecipeCard, ResponsiveGrid, SafeAreaWrapper, SearchBar, SearchSuggestions, Text, type SuggestionItem } from '@/components';
 import { ScreenLayout } from '@/components/layout';
 import { RECIPES_TOUR_STEP } from '@/config/tourSteps';
 import useCurrentUser from '@/hooks/useCurrentUser';
-import { useRecommendedRecipes, useRemoveRecipe, useSavedRecipes, useSaveRecipe } from '@/services';
+import { Clock, FireSimple, Heart, Leaf, Target } from 'phosphor-react-native';
+import { useRecipesByTag, useRecommendedRecipes, useRemoveRecipe, useSavedRecipes, useSaveRecipe } from '@/services';
 import { RecipeSearchResult, searchRecipes } from '@/services/searchApi';
 import type { SavedRecipe } from '@/types';
 import { BRAND_COLORS, getTheme, spacing, useContentBottomPadding, useFABBottomPosition, useSidebarVisible } from '@/utils';
@@ -161,6 +163,48 @@ export const RecipesScreen = () => {
   const saved = useSavedRecipes(userId);
   // Use dedicated recipe recommendations API
   const recommended = useRecommendedRecipes(userGoal, userId);
+
+  // Uber-Eats-style themed discovery rows.
+  const quickRow = useRecipesByTag('quick easy', 10);
+  const proteinRow = useRecipesByTag('high protein', 10);
+  const trendingRow = useRecipesByTag('healthy', 10);
+
+  // Filter chips (F2). Multi-select chips that filter recipes shown in rows.
+  const RECIPE_FILTER_CHIPS: FilterChip[] = useMemo(() => [
+    { id: 'quick', label: '≤20 min', emoji: '⏱️' },
+    { id: 'lowcal', label: '≤500 cal', emoji: '🔥' },
+    { id: 'highprotein', label: 'High protein', emoji: '💪' },
+    { id: 'vegan', label: 'Vegan', emoji: '🌱' },
+    { id: 'budget', label: 'Budget', emoji: '💰' },
+    { id: 'saved', label: 'Saved', emoji: '⭐' },
+  ], []);
+  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
+  const toggleFilter = useCallback((id: string) => {
+    setSelectedFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const clearFilters = useCallback(() => setSelectedFilters(new Set()), []);
+
+  // F4 — Bottom-sheet detail
+  const [detailRecipe, setDetailRecipe] = useState<any | null>(null);
+  const openDetail = useCallback((r: any) => setDetailRecipe(r), []);
+  const closeDetail = useCallback(() => setDetailRecipe(null), []);
+
+  // Warm the disk cache for the first batch of recipe thumbnails.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const urls = (recommended.data ?? [])
+      .slice(0, 6)
+      .map((r: any) => r?.image?.thumb || r?.image?.medium || r?.imageUrl)
+      .filter((u: unknown): u is string => typeof u === 'string' && !!u);
+    if (urls.length > 0) {
+      ExpoImage.prefetch(urls, 'memory-disk').catch(() => {});
+    }
+  }, [recommended.data]);
   const saveRecipe = useSaveRecipe(userId);
   const removeRecipe = useRemoveRecipe(userId);
   const listRef = useRef<FlatList<SavedRecipe>>(null);
@@ -168,6 +212,23 @@ export const RecipesScreen = () => {
   const savedRecipes = saved.data ?? [];
   const savedRecipeIds = useMemo(() => new Set(savedRecipes.map((item) => item.id)), [savedRecipes]);
   const recommendedRecipes = recommended.data ?? [];
+
+  const applyFilters = useCallback((items: any[]): any[] => {
+    if (selectedFilters.size === 0) return items;
+    return items.filter((r) => {
+      if (selectedFilters.has('quick') && (r.timeMinutes ?? 999) > 20) return false;
+      if (selectedFilters.has('lowcal') && (r.calories ?? 9999) > 500) return false;
+      if (selectedFilters.has('highprotein') && (r.protein ?? 0) < 25) return false;
+      if (selectedFilters.has('vegan')) {
+        const tags: string[] = r.tags ?? r.dietTags ?? [];
+        const hit = tags.some((t) => /vegan|plant/i.test(String(t)));
+        if (!hit) return false;
+      }
+      if (selectedFilters.has('budget') && (r.estimatedCost ?? 99) > 5) return false;
+      if (selectedFilters.has('saved') && !savedRecipeIds.has(r.id)) return false;
+      return true;
+    });
+  }, [selectedFilters, savedRecipeIds]);
   const recipeFocus = userGoal === 'GAIN_MUSCLE'
     ? 'Keep meal ideas protein-forward so your training days are easier to support.'
     : userGoal === 'LOSE_WEIGHT'
@@ -350,7 +411,7 @@ export const RecipesScreen = () => {
               Recommended meals and your saved list.
             </Text>
           </View>
-          <ListSkeleton rows={4} showAvatar primaryWidth="55%" secondaryWidth="32%" />
+          <ListSkeleton rows={6} showAvatar primaryWidth="55%" secondaryWidth="32%" />
         </Container>
       </SafeAreaWrapper>
     );
@@ -455,37 +516,86 @@ export const RecipesScreen = () => {
         </View>
       )}
 
-      {/* Recommended Recipes Section - hidden when search UI is active */}
+      {/* Discovery Rows - Uber Eats inspired (hidden when searching) */}
       {!showSearchUI && (
-        <Animated.View entering={staggerEnter(1)} style={styles.section}>
-          <Text variant="heading2" weight="semibold" style={styles.sectionTitle}>
-            Recommended for you
-          </Text>
-          {recommended.isLoading ? (
-            <Text variant="caption" style={[styles.recommendedNote, { color: theme.colors.textSecondary }]}>
-              Loading recommendations...
-            </Text>
-          ) : recommended.isError ? (
-            <Text variant="caption" style={[styles.recommendedNote, { color: theme.colors.textSecondary }]}>
-              Unable to load recommendations.
-            </Text>
-          ) : recommendedRecipes.length === 0 ? (
-            <Text variant="caption" style={[styles.recommendedNote, { color: theme.colors.textSecondary }]}>
-              No recommendations yet.
-            </Text>
-          ) : (
-            <ResponsiveGrid columns={{ mobile: 1, tablet: 2, desktop: 3, wide: 4 }} gap={spacing.md}>
-              {recommendedRecipes.map((item) => (
-                <RecipeCard
-                  key={item.id}
-                  item={item}
-                  isSaved={savedRecipeIds.has(item.id)}
-                  onSave={(id) => saveRecipe.mutateAsync(id).then(() => true)}
-                  onRemove={(id) => removeRecipe.mutateAsync(id).then(() => true)}
-                />
-              ))}
-            </ResponsiveGrid>
-          )}
+        <Animated.View entering={staggerEnter(1)}>
+          {/* F2 — Smart Filter Chips */}
+          <FilterChipBar
+            chips={RECIPE_FILTER_CHIPS}
+            selectedIds={selectedFilters}
+            onToggle={toggleFilter}
+            onClear={clearFilters}
+          />
+
+          <HorizontalRecipeRow
+            title="Recommended for you"
+            subtitle={recipeFocus}
+            icon={<Target size={16} color={BRAND_COLORS.primary} weight="fill" />}
+            recipes={applyFilters(recommendedRecipes)}
+            isLoading={recommended.isLoading}
+            isError={recommended.isError}
+            savedRecipeIds={savedRecipeIds}
+            onSave={(id) => saveRecipe.mutateAsync(id).then(() => true)}
+            onRemove={(id) => removeRecipe.mutateAsync(id).then(() => true)}
+            onOpenDetail={openDetail}
+            accentColor={BRAND_COLORS.primary}
+          />
+
+          <HorizontalRecipeRow
+            title="Quick & easy"
+            subtitle="20 minutes or less"
+            icon={<Clock size={16} color="#0EA5E9" weight="fill" />}
+            recipes={applyFilters(quickRow.data ?? [])}
+            isLoading={quickRow.isLoading}
+            isError={quickRow.isError}
+            savedRecipeIds={savedRecipeIds}
+            onSave={(id) => saveRecipe.mutateAsync(id).then(() => true)}
+            onRemove={(id) => removeRecipe.mutateAsync(id).then(() => true)}
+            onOpenDetail={openDetail}
+            accentColor="#0EA5E9"
+          />
+
+          <HorizontalRecipeRow
+            title="High protein"
+            subtitle="Power up your training days"
+            icon={<FireSimple size={16} color="#EF4444" weight="fill" />}
+            recipes={applyFilters(proteinRow.data ?? [])}
+            isLoading={proteinRow.isLoading}
+            isError={proteinRow.isError}
+            savedRecipeIds={savedRecipeIds}
+            onSave={(id) => saveRecipe.mutateAsync(id).then(() => true)}
+            onRemove={(id) => removeRecipe.mutateAsync(id).then(() => true)}
+            onOpenDetail={openDetail}
+            accentColor="#EF4444"
+          />
+
+          <HorizontalRecipeRow
+            title="Trending healthy"
+            subtitle="Loved by the community"
+            icon={<Heart size={16} color="#EC4899" weight="fill" />}
+            recipes={applyFilters(trendingRow.data ?? [])}
+            isLoading={trendingRow.isLoading}
+            isError={trendingRow.isError}
+            savedRecipeIds={savedRecipeIds}
+            onSave={(id) => saveRecipe.mutateAsync(id).then(() => true)}
+            onRemove={(id) => removeRecipe.mutateAsync(id).then(() => true)}
+            onOpenDetail={openDetail}
+            accentColor="#EC4899"
+          />
+
+          <HorizontalRecipeRow
+            title="Plant-forward"
+            subtitle="Veggie-led ideas worth saving"
+            icon={<Leaf size={16} color="#10B981" weight="fill" />}
+            recipes={applyFilters((quickRow.data ?? []).filter((r: any) => r?.tags?.some?.((t: string) => /veg|plant|salad/i.test(t))).slice(0, 10))}
+            isLoading={quickRow.isLoading}
+            isError={quickRow.isError}
+            savedRecipeIds={savedRecipeIds}
+            onSave={(id) => saveRecipe.mutateAsync(id).then(() => true)}
+            onRemove={(id) => removeRecipe.mutateAsync(id).then(() => true)}
+            onOpenDetail={openDetail}
+            accentColor="#10B981"
+          />
         </Animated.View>
       )}
     </View>
@@ -535,6 +645,60 @@ export const RecipesScreen = () => {
             />
           )}
         </ScreenLayout>
+
+        {/* F4 — Recipe detail bottom sheet */}
+        <DetailBottomSheet
+          visible={!!detailRecipe}
+          onClose={closeDetail}
+          title={detailRecipe?.title || 'Recipe'}
+        >
+          {detailRecipe ? (
+            <View style={{ gap: spacing.md }}>
+              {detailRecipe.imageUrl ? (
+                <View
+                  style={{
+                    width: '100%',
+                    height: 200,
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                    backgroundColor: 'rgba(17,17,17,0.06)',
+                  }}
+                />
+              ) : null}
+              <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' }}>
+                {detailRecipe.timeMinutes ? (
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(17,17,17,0.06)', borderRadius: 999 }}>
+                    <Text variant="caption" weight="semibold">⏱ {detailRecipe.timeMinutes} min</Text>
+                  </View>
+                ) : null}
+                {detailRecipe.calories ? (
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(17,17,17,0.06)', borderRadius: 999 }}>
+                    <Text variant="caption" weight="semibold">🔥 {detailRecipe.calories} cal</Text>
+                  </View>
+                ) : null}
+                {detailRecipe.protein ? (
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(17,17,17,0.06)', borderRadius: 999 }}>
+                    <Text variant="caption" weight="semibold">💪 {detailRecipe.protein}g protein</Text>
+                  </View>
+                ) : null}
+                {detailRecipe.difficulty ? (
+                  <View style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(17,17,17,0.06)', borderRadius: 999 }}>
+                    <Text variant="caption" weight="semibold">{String(detailRecipe.difficulty).toUpperCase()}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {detailRecipe.description ? (
+                <Text variant="body" style={{ color: theme.colors.textSecondary, lineHeight: 22 }}>
+                  {detailRecipe.description}
+                </Text>
+              ) : (
+                <Text variant="caption" style={{ color: theme.colors.textSecondary }}>
+                  Tap “See full recipe” to view the complete ingredient list and steps.
+                </Text>
+              )}
+            </View>
+          ) : null}
+        </DetailBottomSheet>
       </View>
     </SafeAreaWrapper>
   );

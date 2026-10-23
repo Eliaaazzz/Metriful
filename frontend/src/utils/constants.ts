@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 import { chartColors, colors } from './theme';
 
 export const APP_NAME = 'Metriful';
@@ -61,50 +63,89 @@ export const TAB_ICON_SIZE = {
 export const DEFAULT_MEAL_IMAGE_WIDTH_CM = 35;
 
 /**
- * Landing page design system — intentionally separate from the app's warm
- * glass-morphism palette.  The landing page follows an Uber-style black/white
- * editorial aesthetic.  Every value is an explicit design decision; changing one
- * of these tokens updates every landing component at once.
+ * Landing page design system — "instrument-grade warmth".
+ * Mirrors the static prerendered landing (scripts/prerender-landing.mjs) and the
+ * app theme (utils/theme.ts): paper `#F8F7F3`, warm ink `#171511`, copper
+ * `#C96A34`, sage `#2F7A6A`. Every value is an explicit design decision;
+ * changing one of these tokens updates every landing component at once.
  */
 export const LANDING_COLORS = {
   /* ── text ────────────────────────────────────────────── */
-  text: '#111111',
-  textOnDark: '#FFFFFF',
-  textOnDarkMuted: 'rgba(255,255,255,0.82)',
-  textOnDarkSubtle: 'rgba(255,255,255,0.76)',
-  textOnDarkFaint: 'rgba(255,255,255,0.58)',
-  textOnDarkLegal: 'rgba(255,255,255,0.56)',
-  textOnAccent: '#2D2D2B',
-  fieldLabel: 'rgba(17,17,17,0.62)',
+  text: '#171511',
+  textSoft: '#3E3C38',
+  textMuted: '#6D6860',
+  textFaint: '#96907F',
+  textOnDark: '#F7F2EC',
+  textOnDarkMuted: 'rgba(247,242,236,0.8)',
+  textOnDarkSubtle: 'rgba(247,242,236,0.68)',
+  textOnDarkFaint: 'rgba(247,242,236,0.52)',
+  textOnDarkLegal: 'rgba(247,242,236,0.5)',
+  textOnAccent: '#FFFFFF',
+  fieldLabel: 'rgba(23,21,17,0.62)',
 
   /* ── backgrounds & surfaces ─────────────────────────── */
-  bg: '#FFFFFF',
-  surface: '#F2F1ED',
-  surfaceChip: '#F4F3EF',
-  navBg: '#000000',
-  footerBg: '#000000',
+  bg: '#F8F7F3',
+  surface: '#FFFFFF',
+  surfaceChip: '#F4F2ED',
+  navBg: 'rgba(248,247,243,0.88)',
+  footerBg: '#171511',
+  panel: '#171511',
+
+  /* ── brand accents ──────────────────────────────────── */
+  copper: '#C96A34',
+  copperDeep: '#A7552A',
+  copperPress: '#8F4722',
+  copperOnDark: '#E2A479',
+  copperOnDarkPress: '#F3C6A7',
+  sage: '#2F7A6A',
+  tintCopper: 'rgba(201,106,52,0.07)',
+  tintSage: 'rgba(47,122,106,0.07)',
 
   /* ── CTA / buttons ──────────────────────────────────── */
-  ctaBg: '#000000',
+  ctaBg: '#A7552A',
   ctaText: '#FFFFFF',
   pillBg: '#FFFFFF',
-  pillText: '#111111',
+  pillText: '#171511',
 
   /* ── borders ────────────────────────────────────────── */
-  border: 'rgba(17,17,17,0.06)',
-  borderField: 'rgba(17,17,17,0.08)',
-  borderLink: 'rgba(17,17,17,0.18)',
-  borderFooter: 'rgba(255,255,255,0.12)',
-  borderStoreBadge: 'rgba(255,255,255,0.18)',
+  border: 'rgba(23,21,17,0.11)',
+  borderSoft: 'rgba(23,21,17,0.065)',
+  borderField: 'rgba(23,21,17,0.08)',
+  borderLink: 'rgba(23,21,17,0.18)',
+  borderStrong: 'rgba(23,21,17,0.17)',
+  borderFooter: 'rgba(247,242,236,0.12)',
+  borderStoreBadge: 'rgba(247,242,236,0.18)',
 
   /* ── accent cards ───────────────────────────────────── */
   accent: {
-    teal: '#FDEBD0',
-    warm: '#C98A78',
+    teal: '#E7F0EC',
+    warm: '#F6EDE4',
   },
 
   /* ── stars ───────────────────────────────────────────── */
-  star: '#F59E0B',
+  star: '#B88428',
+} as const;
+
+/**
+ * Landing typography — web loads Bricolage Grotesque / Instrument Sans / Space
+ * Mono via the <link> the prerender script injects into dist/index.html (it
+ * survives hydration). Native falls back to system faces, so the app keeps its
+ * platform feel.
+ */
+export const LANDING_TYPE = {
+  display: Platform.select({
+    web: "'Bricolage Grotesque', 'Instrument Sans', system-ui, -apple-system, sans-serif",
+    default: undefined,
+  }),
+  body: Platform.select({
+    web: "'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    default: undefined,
+  }),
+  mono: Platform.select({
+    web: "'Space Mono', ui-monospace, Menlo, monospace",
+    ios: 'Menlo',
+    default: 'monospace',
+  }),
 } as const;
 
 /**

@@ -53,9 +53,23 @@ export interface FoodRecognitionResponse {
   imageUrl?: string;
 }
 
+export interface DepthItemMetadata {
+  volume_cm3?: number;
+  area_cm2?: number;
+  /** normalized centroid [0,1], top-left origin — lets the backend assign this mask to a food */
+  cx?: number;
+  cy?: number;
+}
+
 export interface FoodRecognitionRequestMetadata {
   img_w_cm?: number;
   real_world_width_cm?: number;
+  /** Absolute LiDAR-measured food volume (cm³); enables geometric portion refinement server-side. */
+  volume_cm3?: number;
+  area_cm2?: number;
+  mean_h_cm?: number;
+  /** Per-item segmented regions (LiDAR + on-device Vision masks); enables per-item refinement. */
+  items?: DepthItemMetadata[];
 }
 
 export interface AnalyzeFoodImageOptions {
@@ -187,6 +201,11 @@ const getWeeklySummary = async (userId: string, weekStart?: string): Promise<Nut
   return await api.get<NutritionSummaryResponse>(
     `/api/v1/nutrition/summary/weekly${queryString ? `?${queryString}` : ''}`
   );
+};
+
+/** Delete a logged meal — used by the post-log Undo affordance. */
+const deleteMeal = async (mealId: number): Promise<void> => {
+  await api.delete<void>(`/api/v1/meals/${mealId}`);
 };
 
 const getWeeklyInsight = async (userId: string, weekStart?: string): Promise<NutritionInsightResponse> => {
@@ -389,4 +408,5 @@ export default {
   analyzeFoodImage,
   saveMealFromImage,
   updateMeal,
+  deleteMeal,
 };

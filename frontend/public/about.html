@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About Aura Fitness — the team building Metriful</title>
+  <meta name="description" content="Aura Fitness is a digital-native software company in Melbourne, Australia. We design, build and operate Metriful — an AI meal scanner live on the App Store and on the web. Meet the founding team." />
+  <link rel="canonical" href="https://aurafitness.org/about.html" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F8F7F3" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12100E" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Metriful by Aura Fitness" />
+  <meta property="og:title" content="About Aura Fitness — the team building Metriful" />
+  <meta property="og:description" content="We design, build and operate our own software platform: Metriful, an AI meal scanner live on the App Store and the web." />
+  <meta property="og:url" content="https://aurafitness.org/about.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" />
+  <style>
+    /* Design language: "instrument-grade warmth" — mirrors the landing
+       (scripts/prerender-landing.mjs) and src/utils/constants.ts LANDING_COLORS. */
+    :root{
+      --bg:#F8F7F3; --card:#FFFFFF; --panel:#171511;
+      --ink:#171511; --body-c:#3E3C38; --muted:#6D6860; --faint:#96907F;
+      --line:rgba(23,21,17,.11); --line-soft:rgba(23,21,17,.065); --line-strong:rgba(23,21,17,.17);
+      --copper:#C96A34; --copper-deep:#A7552A; --copper-press:#8F4722; --btn-ink:#FFFFFF;
+      --sage:#2F7A6A;
+      --tint-copper:rgba(201,106,52,.07); --tint-sage:rgba(47,122,106,.07);
+      --hl:rgba(201,106,52,.32);
+      --chip-bg:rgba(47,122,106,.10); --chip-ink:#2F7A6A;
+      --shadow:0 24px 64px rgba(23,21,17,.08),0 3px 10px rgba(23,21,17,.04);
+      --f-display:'Bricolage Grotesque','Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+      --f-body:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+      --f-mono:'Space Mono',ui-monospace,'Cascadia Mono','Segoe UI Mono',Menlo,monospace;
+    }
+    @media (prefers-color-scheme:dark){
+      :root{
+        --bg:#12100E; --card:#221E1B; --panel:#2B2521;
+        --ink:#F7F2EC; --body-c:#D2C8BD; --muted:#A79C8E; --faint:#7E756A;
+        --line:rgba(255,248,239,.13); --line-soft:rgba(255,248,239,.08); --line-strong:rgba(255,248,239,.22);
+        --copper:#E2A479; --copper-deep:#E2A479; --copper-press:#F3C6A7; --btn-ink:#171310;
+        --sage:#78B6A5;
+        --tint-copper:rgba(226,164,121,.09); --tint-sage:rgba(120,182,165,.09);
+        --hl:rgba(226,164,121,.34);
+        --chip-bg:rgba(120,182,165,.14); --chip-ink:#78B6A5;
+        --shadow:0 24px 64px rgba(0,0,0,.42);
+      }
+      .spot{background:#F4EFE7;border-radius:18px;padding:12px}
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--f-body);
+      -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+    ::selection{background:var(--hl)}
+    a:focus-visible{outline:2px solid var(--copper);outline-offset:3px;border-radius:6px}
+    .wrap{max-width:1140px;margin:0 auto;padding-left:24px;padding-right:24px}
+    @media (max-width:640px){.wrap{padding-left:18px;padding-right:18px}}
+
+    /* ── nav ── */
+    .nav{position:sticky;top:0;z-index:20;background:var(--bg);
+      background:color-mix(in srgb,var(--bg) 86%,transparent);
+      -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+      border-bottom:1px solid var(--line-soft)}
+    .nav-in{display:flex;align-items:center;justify-content:space-between;height:62px}
+    .brand{display:inline-flex;align-items:baseline;gap:10px;text-decoration:none;color:var(--ink);
+      font-family:var(--f-display);font-weight:800;font-size:19px;letter-spacing:-.02em}
+    .brand-tick{width:10px;height:10px;flex:none;align-self:center;
+      border-left:2px solid var(--copper);border-top:2px solid var(--copper)}
+    .byline{font:400 11px/1 var(--f-mono);color:var(--muted);letter-spacing:.06em}
+    .nav-links{display:flex;align-items:center;gap:22px}
+    .mono-link{font:400 12.5px/1 var(--f-mono);color:var(--muted);text-decoration:none;letter-spacing:.03em}
+    .mono-link:hover{color:var(--ink);text-decoration:underline}
+    .mono-link[aria-current="page"]{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+    .navcta{font:600 13.5px/1 var(--f-body);color:var(--ink);text-decoration:none;
+      border:1px solid var(--line-strong);border-radius:999px;padding:10px 16px;transition:border-color .15s}
+    .navcta:hover{border-color:var(--ink)}
+    @media (max-width:600px){.mono-link,.byline{display:none}}
+
+    /* ── hero ── */
+    .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:56px;align-items:center;
+      padding-top:72px;padding-bottom:64px}
+    @media (max-width:920px){.hero{grid-template-columns:1fr;gap:36px;padding-top:48px;padding-bottom:48px}}
+    .eyebrow{display:flex;align-items:center;gap:10px;margin:0 0 18px;
+      font:700 11px/1 var(--f-mono);letter-spacing:.18em;text-transform:uppercase;color:var(--copper)}
+    .eyebrow::before{content:"";width:22px;height:2px;background:var(--copper);flex:none}
+    h1{margin:0 0 20px;font-family:var(--f-display);font-weight:800;
+      font-size:clamp(32px,4.8vw,54px);line-height:1.06;letter-spacing:-.035em;text-wrap:balance}
+    .hl{background:linear-gradient(var(--hl),var(--hl)) 0 87%/100% .13em no-repeat}
+    .lede{margin:0;font-size:17px;line-height:1.7;color:var(--muted);max-width:36em}
+    .lede strong{color:var(--body-c)}
+    .spot{width:min(300px,80%);height:auto;justify-self:center}
+
+    /* ── sections ── */
+    .sect{padding-top:64px;padding-bottom:64px;border-top:1px solid var(--line-soft)}
+    @media (max-width:640px){.sect{padding-top:48px;padding-bottom:48px}}
+    h2{margin:0 0 12px;font-family:var(--f-display);font-weight:800;
+      font-size:clamp(25px,3.2vw,36px);line-height:1.1;letter-spacing:-.03em}
+    .sub{margin:0;font-size:16px;line-height:1.65;color:var(--muted);max-width:44em}
+
+    /* spec sheet (same signature as the landing's accuracy section) */
+    .spec{margin:34px 0 0;border-top:1px solid var(--line)}
+    .spec-row{display:grid;grid-template-columns:172px 1fr;gap:26px;padding:21px 0;
+      border-bottom:1px solid var(--line-soft)}
+    @media (max-width:700px){.spec-row{grid-template-columns:1fr;gap:8px;padding:18px 0}}
+    .spec-row dt{font:700 11.5px/1.5 var(--f-mono);letter-spacing:.17em;text-transform:uppercase;
+      color:var(--copper);padding-top:4px}
+    .spec-row dd{margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:24px;flex-wrap:wrap}
+    .spec-row dd .txt{font-size:15.5px;line-height:1.65;color:var(--body-c);max-width:58ch}
+    .spec-row dd .txt a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+    .spec-tag{flex:none;margin-left:auto;font:400 11px/1 var(--f-mono);color:var(--faint);
+      white-space:nowrap;border:1px solid var(--line-soft);border-radius:999px;padding:5px 10px}
+
+    .cta-row{display:flex;flex-wrap:wrap;gap:12px;margin:30px 0 0}
+    .btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+      font:600 15px/1 var(--f-body);color:var(--btn-ink);background:var(--copper-deep);
+      padding:15px 22px;border-radius:12px;transition:background .15s}
+    .btn:hover{background:var(--copper-press)}
+    .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line-strong)}
+    .btn.ghost:hover{background:transparent;border-color:var(--ink)}
+
+    /* team cards */
+    .team{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin-top:32px}
+    .member{background:var(--card);border:1px solid var(--line-soft);border-radius:20px;
+      box-shadow:var(--shadow);padding:26px;max-width:680px}
+    .monogram{width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+      background:var(--tint-copper);border:1px solid var(--line-soft);
+      font:700 18px/1 var(--f-mono);color:var(--copper);letter-spacing:.04em;margin-bottom:16px}
+    .member h3{margin:0;font:700 19px/1.3 var(--f-display);letter-spacing:-.02em;color:var(--ink)}
+    .member .role{margin:4px 0 12px;font:700 10.5px/1.5 var(--f-mono);letter-spacing:.15em;
+      text-transform:uppercase;color:var(--copper)}
+    .member p{margin:0;font-size:14.5px;line-height:1.7;color:var(--body-c)}
+    .member .links{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
+    .member .links a{font:400 12.5px/1 var(--f-mono);color:var(--muted);text-decoration:underline;
+      text-underline-offset:3px}
+    .member .links a:hover{color:var(--ink)}
+
+    /* company / contact panel */
+    .company{background:var(--panel);color:#F7F2EC;border-radius:24px;padding:44px 46px;margin-top:8px}
+    @media (max-width:700px){.company{padding:32px 24px}}
+    .company h2{color:#F7F2EC}
+    .company .sub{color:rgba(247,242,236,.68)}
+    .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px;margin-top:28px}
+    .fact h4{margin:0 0 8px;font:700 10.5px/1 var(--f-mono);letter-spacing:.17em;
+      text-transform:uppercase;color:rgba(247,242,236,.5)}
+    .fact p{margin:0;font-size:15px;line-height:1.6;color:rgba(247,242,236,.88)}
+    .fact a{color:#E2A479;text-decoration:underline;text-underline-offset:3px}
+    .fact a:hover{color:#F3C6A7}
+
+    /* footer */
+    .foot{border-top:1px solid var(--line);margin-top:64px}
+    .legal{padding:22px 24px 34px;font:400 11.5px/1.9 var(--f-mono);color:var(--faint)}
+    .legal a{color:var(--muted)}
+  </style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/"><span class="brand-tick"></span>Metriful <span class="byline">by Aura Fitness</span></a>
+    <nav class="nav-links" aria-label="Site">
+      <a class="mono-link" href="/">Product</a>
+      <a class="mono-link" href="/about.html" aria-current="page">About</a>
+      <a class="mono-link" href="/support.html">Support</a>
+      <a class="navcta" href="https://apps.apple.com/app/metriful/id6760930295">App Store ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="wrap hero">
+    <div>
+      <p class="eyebrow">About Aura Fitness</p>
+      <h1>We build and operate <span class="hl">our own</span> software platform.</h1>
+      <p class="lede">Aura Fitness is a digital-native software company based in Melbourne, Australia.
+      We design, build and run one product: <strong>Metriful</strong>, an AI meal scanner that turns a
+      photo into an itemized, editable nutrition estimate. No client work, no consulting, no reselling —
+      the product on this site <em>is</em> the company, and the founder below writes its code.</p>
+    </div>
+    <img class="spot" src="/illustrations/snap-camera.svg" alt="" width="500" height="500" loading="lazy" />
+  </section>
+
+  <section class="wrap sect" id="product">
+    <p class="eyebrow">The product</p>
+    <h2>Metriful, at a glance</h2>
+    <p class="sub">Everything below is publicly verifiable — the app is live on the App Store and the
+    web app runs at this domain.</p>
+    <dl class="spec">
+      <div class="spec-row">
+        <dt>What it is</dt>
+        <dd><span class="txt">An iOS and web app that turns a meal photo into an itemized nutrition
+        estimate: every detected food with grams, calories, macros and a confidence level. On LiDAR
+        iPhones, depth measures the plate so portions come from geometry, not guesswork. Every line
+        is editable in one tap.</span><span class="spec-tag">iOS + web</span></dd>
+      </div>
+      <div class="spec-row">
+        <dt>Who it's for</dt>
+        <dd><span class="txt">People who quit calorie apps because logging took longer than eating —
+        and people managing metabolic health who need logging they'll actually keep doing. The core
+        loop is one photo, one review, one clear next step.</span><span class="spec-tag">consumer health</span></dd>
+      </div>
+      <div class="spec-row">
+        <dt>Stage</dt>
+        <dd><span class="txt">In production. Metriful is <a href="https://apps.apple.com/app/metriful/id6760930295">live
+        on the App Store</a> and on the web at <a href="/">aurafitness.org</a>, with updates shipping
+        regularly — see the <a href="/release-notes.html">release notes</a>.</span><span class="spec-tag">live</span></dd>
+      </div>
+      <div class="spec-row">
+        <dt>How it works</dt>
+        <dd><span class="txt">Snap a meal → the vision pipeline identifies each food and estimates
+        portions → uncertain items are flagged for a one-tap review → the day's remaining targets and
+        one concrete suggestion come back. The <a href="/#flow">product page walks through the full
+        flow</a>, including a worked example scan.</span><span class="spec-tag">photo → estimate</span></dd>
+      </div>
+      <div class="spec-row">
+        <dt>Built in-house</dt>
+        <dd><span class="txt">One codebase ships the iOS and web clients (React Native + Expo). Our own
+        API (Spring Boot / Java) runs on Google Cloud Run in australia-southeast2, on PostgreSQL with
+        pgvector for food-similarity search, with Gemini vision models and OpenAI embeddings in the
+        scanning pipeline. We build and operate all of it ourselves.</span><span class="spec-tag">own platform</span></dd>
+      </div>
+    </dl>
+    <div class="cta-row">
+      <a class="btn" href="https://apps.apple.com/app/metriful/id6760930295">Download on the App Store</a>
+      <a class="btn ghost" href="/">See the product page</a>
+    </div>
+  </section>
+
+  <section class="wrap sect" id="team">
+    <p class="eyebrow">The founder</p>
+    <h2>Built and run by one person.</h2>
+    <p class="sub">Metriful is a solo-founder company: Elia writes the code, runs the
+    infrastructure, answers <a href="mailto:support@aurafitness.org" style="color:var(--ink)">the support inbox</a>
+    and ships every release.</p>
+    <div class="team">
+      <div class="member">
+        <div class="monogram" aria-hidden="true">EL</div>
+        <h3>Elia Liu</h3>
+        <p class="role">Founder &amp; CEO</p>
+        <p>Computer Science student at the University of Melbourne. Elia builds most of Metriful —
+        the AI scanning pipeline, the iOS and web apps, and the Google Cloud infrastructure they run
+        on — with a background in AI systems, open-source development and scalable software
+        infrastructure.</p>
+        <div class="links">
+          <a href="https://www.linkedin.com/in/elia-liu/" rel="noopener">LinkedIn ↗</a>
+          <a href="https://github.com/Eliaazzz" rel="noopener">GitHub ↗</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap sect" id="contact">
+    <div class="company">
+      <p class="eyebrow">Company</p>
+      <h2>Where to find us</h2>
+      <p class="sub">We're a small team and we read everything sent to the address below.</p>
+      <div class="facts">
+        <div class="fact">
+          <h4>Company</h4>
+          <p>Aura Fitness<br />Melbourne, Australia</p>
+        </div>
+        <div class="fact">
+          <h4>Product</h4>
+          <p>Metriful — <a href="https://apps.apple.com/app/metriful/id6760930295">App Store</a> ·
+          <a href="https://aurafitness.org">web app</a></p>
+        </div>
+        <div class="fact">
+          <h4>Contact</h4>
+          <p><a href="mailto:support@aurafitness.org">support@aurafitness.org</a><br />
+          Replies within 24 hours on business days.</p>
+        </div>
+        <div class="fact">
+          <h4>The fine print</h4>
+          <p><a href="/privacy-policy.html">Privacy Policy</a> ·
+          <a href="/terms-of-service.html">Terms</a> ·
+          <a href="/data-deletion.html">Data Deletion</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap legal">© 2026 Metriful by Aura Fitness · AI numbers are estimates — verify with a
+  healthcare professional. · Illustrations by <a href="https://storyset.com" rel="noopener">Storyset</a> ·
+  <a href="/">Product</a> · <a href="/support.html">Support</a> · <a href="/release-notes.html">Release notes</a></div>
+</footer>
+
+</body>
+</html>

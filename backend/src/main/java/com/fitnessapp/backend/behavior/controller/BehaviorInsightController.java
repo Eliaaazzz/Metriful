@@ -53,6 +53,11 @@ public class BehaviorInsightController {
   public ResponseEntity<ColdStartResponse> coldStart() {
     UUID userId = currentUser.requireUserId();
     InsightStatsService.ColdStartStatus status = statsService.coldStartStatus(userId);
+    if (!status.unlocked()) {
+      deriver.backfill(userId, LocalDate.now(ZoneOffset.UTC).minusDays(1), ZoneOffset.UTC);
+      statsService.recomputeForUser(userId);
+      status = statsService.coldStartStatus(userId);
+    }
     return ResponseEntity.ok(new ColdStartResponse(status.daysLogged(), status.target(), status.unlocked()));
   }
 

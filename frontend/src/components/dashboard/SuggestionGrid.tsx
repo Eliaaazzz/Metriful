@@ -40,7 +40,9 @@ export function SuggestionGrid({ cards }: SuggestionGridProps) {
   }, [isCompact, width]);
 
   const gridWidth = measuredWidth && measuredWidth > 0 ? measuredWidth : fallbackWidth;
-  const cardWidth = Math.max(0, (gridWidth - GRID_GAP) / 2);
+  // Uber-style shelf: one row of tiles on wide screens, wrapping down to 2-up on phones.
+  const columns = gridWidth >= 1080 ? 6 : gridWidth >= 640 ? 3 : 2;
+  const cardWidth = Math.max(0, (gridWidth - GRID_GAP * (columns - 1)) / columns);
   const illustrationStyle = isCompact
     ? [styles.illustration, styles.illustrationCompact]
     : styles.illustration;

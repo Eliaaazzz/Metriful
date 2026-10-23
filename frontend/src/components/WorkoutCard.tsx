@@ -1,8 +1,10 @@
 import { BookmarkButton, Button, Text, useSnackbar, YouTubePlayerModal } from '@/components';
+import { useWorkoutSessionStore } from '@/stores';
 import type { WorkoutCard as Workout } from '@/types';
 import { cardStyles, getTheme, radii, spacing, useResponsiveValue } from '@/utils';
 import { getFriendlyErrorMessage } from '@/utils/errors';
 import * as Haptics from 'expo-haptics';
+import { Image as ExpoImage } from 'expo-image';
 import React, { useCallback, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
@@ -10,6 +12,14 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
+
+// On native, downgrade large YouTube thumbnails (maxresdefault / sddefault / hqdefault)
+// to mqdefault (320x180, ~12KB) — perfect for card size, ~10x smaller payload.
+const mobileThumb = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
+  if (Platform.OS === 'web') return url;
+  return url.replace(/\/(maxres|sd|hq)default\.jpg/i, '/mqdefault.jpg');
+};
 
 type Props = {
   item: Workout;
@@ -61,6 +71,9 @@ export const WorkoutCard = ({ item, onSave, onRemove, isSaved, disableHoverEffec
       pressScale.value = withSpring(1, { damping: 15, stiffness: 300 });
     }
   }, [enableHover, pressScale]);
+
+  const startSession = useWorkoutSessionStore((s) => s.start);
+  const activeSession = useWorkoutSessionStore((s) => s.session);
 
   const level = item.level?.toUpperCase?.() ?? '—';
   const duration = item.durationMinutes ? `${item.durationMinutes} min` : '—';
@@ -118,11 +131,22 @@ export const WorkoutCard = ({ item, onSave, onRemove, isSaved, disableHoverEffec
       {/* Image */}
       <View style={[styles.imageContainer, { height: imageHeight }]}>
         {item.thumbnailUrl ? (
-          <Image
-            source={{ uri: item.thumbnailUrl }}
-            style={[styles.image, Platform.OS === 'web' && { objectFit: 'cover' } as any]}
-            resizeMode="cover"
-          />
+          Platform.OS === 'web' ? (
+            <Image
+              source={{ uri: item.thumbnailUrl }}
+              style={[styles.image, { objectFit: 'cover' } as any]}
+              resizeMode="cover"
+            />
+          ) : (
+            <ExpoImage
+              source={{ uri: mobileThumb(item.thumbnailUrl) }}
+              style={styles.image}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={200}
+              recyclingKey={item.youtubeId ?? item.id}
+            />
+          )
         ) : (
           <View style={[styles.image, { backgroundColor: theme.colors.surfaceVariant }]} />
         )}
@@ -152,6 +176,23 @@ export const WorkoutCard = ({ item, onSave, onRemove, isSaved, disableHoverEffec
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
               setShowPlayer(true);
+            }}
+          />
+          <Button
+            title={activeSession?.workoutId === item.id ? 'In session' : 'Start'}
+            variant="ghost"
+            size="small"
+            disabled={!!activeSession && activeSession.workoutId !== item.id}
+            onPress={() => {
+              if (activeSession) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+              startSession({
+                workoutId: item.id,
+                title: item.title,
+                youtubeId: item.youtubeId,
+                thumbnailUrl: item.thumbnailUrl,
+                estimatedCaloriesPerMin: item.level === 'beginner' ? 6 : item.level === 'advanced' ? 10 : 8,
+              });
             }}
           />
           <BookmarkButton

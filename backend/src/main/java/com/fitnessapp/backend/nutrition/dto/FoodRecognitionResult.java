@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
  * Result from AI food recognition
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class FoodRecognitionResult {

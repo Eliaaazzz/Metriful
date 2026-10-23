@@ -27,7 +27,7 @@ export const TODAYS_NUTRITION_STEP: TourStep = {
   zone: 2,
   screen: 'Dashboard',
   title: "Today's Nutrition",
-  text: "See today's calories, macros, and blood sugar estimate in one place.",
+  text: "See today's calories, macros, and estimated glycemic impact in one place.",
 };
 
 // Step 3: Quick Actions (Dashboard)

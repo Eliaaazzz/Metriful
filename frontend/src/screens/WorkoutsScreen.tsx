@@ -1,11 +1,12 @@
 import { TourGuideZone } from '@/components/tour/TourProvider';
+import { Image as ExpoImage } from 'expo-image';
 import { Barbell, WarningCircle } from 'phosphor-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { FAB } from 'react-native-paper';
 
-import { Container, EmptyStateCard, ListSkeleton, ResponsiveGrid, SafeAreaWrapper, SearchBar, SearchSuggestions, Text, WorkoutCard, type SuggestionItem } from '@/components';
+import { Container, EmptyStateCard, ListSkeleton, ResponsiveGrid, SafeAreaWrapper, SearchBar, SearchSuggestions, StrengthLogModal, Text, WorkoutCard, type SuggestionItem } from '@/components';
 import { ScreenLayout } from '@/components/layout';
 import { WORKOUTS_TOUR_STEP } from '@/config/tourSteps';
 import useCurrentUser from '@/hooks/useCurrentUser';
@@ -171,6 +172,21 @@ export const WorkoutsScreen = () => {
   useEffect(() => { hasAnimated.current = true; }, []);
   const saved = useSavedWorkouts(userId);
   const recommended = useRecommendedWorkouts(currentUser.data?.profile?.fitnessGoal, userId);
+
+  // F12 — Strength log modal
+  const [strengthModalOpen, setStrengthModalOpen] = useState(false);
+
+  // Warm the disk cache for the first batch of thumbnails so scrolling feels instant.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const urls = (recommended.data ?? [])
+      .slice(0, 6)
+      .map((w) => w.thumbnailUrl?.replace(/\/(maxres|sd|hq)default\.jpg/i, '/mqdefault.jpg'))
+      .filter((u): u is string => !!u);
+    if (urls.length > 0) {
+      ExpoImage.prefetch(urls, 'memory-disk').catch(() => {});
+    }
+  }, [recommended.data]);
   const saveWorkout = useSaveWorkout(userId);
   const removeWorkout = useRemoveWorkout(userId);
   const listRef = useRef<FlatList<SavedWorkout>>(null);
@@ -538,7 +554,23 @@ export const WorkoutsScreen = () => {
               visible={showFab}
             />
           )}
+          {!showSidebar && (
+            <FAB
+              icon="dumbbell"
+              label="Log strength"
+              style={[styles.fab, { bottom: fabBottomPosition + 64, right: 16, backgroundColor: '#F97316' }]}
+              color="#FFF"
+              mode="elevated"
+              onPress={() => setStrengthModalOpen(true)}
+            />
+          )}
         </ScreenLayout>
+
+        {/* F12 — Strength session log */}
+        <StrengthLogModal
+          visible={strengthModalOpen}
+          onClose={() => setStrengthModalOpen(false)}
+        />
       </View>
     </SafeAreaWrapper>
   );
