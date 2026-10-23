@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
+import { trackEvent } from '@/services/analytics';
 import { openExternalUrl, spacing } from '@/utils';
 
 export const APP_STORE_URL = 'https://apps.apple.com/app/metriful/id6760930295';
@@ -48,7 +49,10 @@ export function StoreBadges({ playStoreUrl, height = 48, style, align = 'flex-st
       ]}
     >
       <Pressable
-        onPress={() => void openExternalUrl(APP_STORE_URL, 'Unable to open the App Store', 'Please try opening the App Store manually.')}
+        onPress={() => {
+          trackEvent('app_store_click', { placement: 'app' });
+          void openExternalUrl(APP_STORE_URL, 'Unable to open the App Store', 'Please try opening the App Store manually.');
+        }}
         accessibilityRole="link"
         accessibilityLabel="Download Metriful on the App Store"
         style={({ pressed }) => [{ minHeight: wrapMinHeight, justifyContent: 'center' }, pressed && styles.pressed]}
@@ -63,7 +67,10 @@ export function StoreBadges({ playStoreUrl, height = 48, style, align = 'flex-st
 
       <View style={styles.googleColumn}>
         <Pressable
-          onPress={playStoreUrl ? () => void openExternalUrl(playStoreUrl, 'Unable to open Google Play', 'Please try opening Google Play manually.') : undefined}
+          onPress={playStoreUrl ? () => {
+            trackEvent('play_store_click', { placement: 'app' });
+            void openExternalUrl(playStoreUrl, 'Unable to open Google Play', 'Please try opening Google Play manually.');
+          } : undefined}
           disabled={!playEnabled}
           accessibilityRole={playEnabled ? 'link' : 'image'}
           accessibilityLabel={playEnabled ? 'Get Metriful on Google Play' : 'Metriful on Google Play — coming soon'}

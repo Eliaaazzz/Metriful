@@ -1,15 +1,26 @@
 import { AIDisclaimer } from '@/components/common/AIDisclaimer';
 import { PermissionRequestModal } from '@/components/common/PermissionRequestModal';
 import { RecognitionProcessingHero } from '@/components/common/RecognitionProcessingHero';
+import { ClarifyQuestionCard } from '@/components/nutrition/ClarifyQuestionCard';
 import { DetectedItemRow } from '@/components/nutrition/DetectedItemRow';
+import { HowEstimatedSheet } from '@/components/nutrition/HowEstimatedSheet';
+import { ShareMealSheet } from '@/components/nutrition/ShareMealSheet';
 import { NutritionSummaryCard } from '@/components/nutrition/NutritionSummaryCard';
+import { ScanStagesList } from '@/components/nutrition/ScanStagesList';
 import { CameraView } from '@/components/CameraView';
-import useImageCompressor from '@/hooks/useImageCompressor';
+import { VisionCameraView } from '@/components/VisionCameraView';
 import { useCameraPermission } from '@/hooks/useCameraPermission';
+import { useDailyNutrition } from '@/hooks/useDailyNutrition';
+import { useDeviceCapabilities } from '@/hooks/useDeviceCapabilities';
+import { trackEvent } from '@/services/analytics';
 import nutritionApi, {
   DetectedFood,
   TotalNutrition,
 } from '@/services/nutritionApi';
+import { useScanStore } from '@/stores';
+import { applyClarifyAnswer, buildClarifyQuestions, ClarifyQuestion } from '@/utils/clarify';
+import { normalizeMimeType } from '@/utils/imageSource';
+import { buildNextStep } from '@/utils/nextStep';
 import { BRAND_COLORS, DEFAULT_MEAL_IMAGE_WIDTH_CM, NUTRITION_REFERENCES, openExternalUrl } from '@/utils';
 import { ArrowLeft, Camera, Check, ImageSquare, MagnifyingGlass, SealCheck, WarningCircle } from 'phosphor-react-native';
 import { Image as ExpoImage } from 'expo-image';
@@ -78,7 +89,6 @@ const CARD_SHADOW = {
   elevation: 3,
 } as const;
 const ENTRANCE_EASING = Easing.bezier(0.2, 0.8, 0.2, 1);
-const HEIC_MIME_TYPES = new Set(['image/heic', 'image/heif']);
 
 const hasMeaningfulNutrition = (value: TotalNutrition | null): boolean => {
   if (!value) return false;
@@ -86,14 +96,7 @@ const hasMeaningfulNutrition = (value: TotalNutrition | null): boolean => {
 };
 
 const hasBreakdownItems = (foods: DetectedFood[]): boolean => foods.some((food) => Number(food.amount) > 0);
-const normalizeRouteMimeType = (value?: string | null): string => (value || '').split(';')[0].trim().toLowerCase();
-const looksLikeHeicPath = (value?: string | null): boolean => {
-  const normalized = (value || '').split('?')[0].split('#')[0].toLowerCase();
-  return normalized.endsWith('.heic') || normalized.endsWith('.heif');
-};
-const isHeicLikeSource = (mimeType?: string | null, path?: string | null): boolean => {
-  return HEIC_MIME_TYPES.has(normalizeRouteMimeType(mimeType)) || looksLikeHeicPath(path);
-};
+const normalizeRouteMimeType = normalizeMimeType;
 
 type WebSelectedImage = {
   uri: string;
@@ -171,13 +174,29 @@ const pickWebImageFile = (useCamera = false): Promise<WebSelectedImage | null> =
 
 export function ReviewMealScreen({ route, navigation }: any) {
   // Support both new image analysis and viewing/editing saved meals
-  const { imageUri, imageMimeType, imageFileName, meal, openCamera, imgWcm } = route.params ?? {};
+  const { imageUri, imageMimeType, imageFileName, meal, openCamera, imgWcm, volumeCm3, items: lidarItems, scanId: routeScanId } = route.params ?? {};
   const isViewingExisting = !!meal;
   // On web, camera is not available — skip camera UI and auto-open gallery
   const shouldShowCamera = !!openCamera && !imageUri && !isViewingExisting && Platform.OS !== 'web';
 
   const cameraPerm = useCameraPermission();
+  const capabilities = useDeviceCapabilities();
+  // Use the depth-aware camera only on devices with a real depth sensor (LiDAR/ToF);
+  // everything else (and web) keeps the existing basic camera. Safe either way: when no
+  // real depth is available the computed imgWcm is null and we fall back to scaleHintCm.
+  const useDepthCapture = Platform.OS !== 'web' && (capabilities.hasLiDAR || capabilities.hasToF);
   const scaleHintCm = typeof imgWcm === 'number' ? imgWcm : DEFAULT_MEAL_IMAGE_WIDTH_CM;
+  // Absolute LiDAR food volume (cm³) captured at photo time; enables geometric portion refinement
+  // on the backend. Undefined for gallery photos / non-depth devices, where the backend no-ops.
+  const volumeHintCm = typeof volumeCm3 === 'number' && volumeCm3 > 0 ? volumeCm3 : undefined;
+  // Per-item LiDAR regions captured at photo time → per-item portion refinement server-side (each
+  // food corrected by its own volume × density). Mapped to the backend's snake_case shape; cleared
+  // for gallery photos / retakes (see resets below) so no stale per-item volumes leak into analysis.
+  const itemsHint = Array.isArray(lidarItems) && lidarItems.length > 0
+    ? lidarItems
+        .filter((r: any) => r && typeof r.volumeCm3 === 'number' && r.volumeCm3 > 0)
+        .map((r: any) => ({ volume_cm3: r.volumeCm3, area_cm2: r.areaCm2, cx: r.cx, cy: r.cy }))
+    : undefined;
 
   const insets = useSafeAreaInsets();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
@@ -187,6 +206,15 @@ export function ReviewMealScreen({ route, navigation }: any) {
   const lastAnalyzedImageUriRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(!isViewingExisting); // Don't show loading for existing meals
   const [phase, setPhase] = useState<1 | 2 | 3>(1);
+  // Analysis runs in the scan store (not this component) so it survives leaving the screen;
+  // `activeScanId` binds this screen to one scan — either the one it started, or a background
+  // scan it was reopened for via the Dashboard status chip ({ scanId } route param).
+  const [activeScanId, setActiveScanId] = useState<string | undefined>(
+    typeof routeScanId === 'string' ? routeScanId : undefined
+  );
+  const appliedScanIdRef = useRef<string | null>(null);
+  const storeScan = useScanStore((s) => s.scan);
+  const scan = storeScan && storeScan.scanId === activeScanId ? storeScan : null;
   const [items, setItems] = useState<DetectedFood[]>(() => {
     // Initialize with existing meal data if viewing
     if (meal?.foodItems) {
@@ -233,6 +261,22 @@ export function ReviewMealScreen({ route, navigation }: any) {
   const [retryCount, setRetryCount] = useState(0);
   const [analysisError, setAnalysisError] = useState<{ title: string; message: string } | null>(null);
   const [mealId] = useState<number | undefined>(meal?.id);
+  // Nutrition-cart interactions: one-question clarifications, per-item portion factors,
+  // manual add, "How was this estimated?" sheet, and the post-log value snapshot.
+  const [clarifyQueue, setClarifyQueue] = useState<ClarifyQuestion[]>([]);
+  const [clarifyTotal, setClarifyTotal] = useState(0);
+  const [portionFactors, setPortionFactors] = useState<Map<string, number>>(new Map());
+  const [howSheetVisible, setHowSheetVisible] = useState(false);
+  const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  const [savedMealId, setSavedMealId] = useState<number | null>(null);
+  const [postLog, setPostLog] = useState<{
+    kcalRemaining: number | null;
+    proteinRemaining: number | null;
+    nextStep: string;
+    mealSlot: string;
+  } | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const dailyNutrition = useDailyNutrition();
   const MAX_RETRIES = 3;
   const contentMaxWidth = Platform.OS === 'web' ? 760 : viewportWidth;
   const previewWidth = Math.max(0, Math.min(viewportWidth - 32, contentMaxWidth - 32));
@@ -275,10 +319,18 @@ export function ReviewMealScreen({ route, navigation }: any) {
     setServerImageUrl(undefined);
     baseNutrition.clear();
     setShowSuccess(false);
+    setClarifyQueue([]);
+    setClarifyTotal(0);
+    setPortionFactors(new Map());
+    setSavedMealId(null);
+    setPostLog(null);
     successAnim.setValue(0);
   };
 
   const applySelectedImage = (asset: { uri: string; mimeType?: string | null; fileName?: string | null }) => {
+    // A new photo supersedes any in-flight or finished background scan.
+    useScanStore.getState().clearScan();
+    appliedScanIdRef.current = null;
     prepareSelectedImageForAnalysis(asset.uri);
     rememberWebObjectUrl(asset.uri);
     navigation.setParams({
@@ -287,6 +339,10 @@ export function ReviewMealScreen({ route, navigation }: any) {
       imageFileName: asset.fileName,
       openCamera: false,
       imgWcm: scaleHintCm,
+      scanId: undefined,
+      // Gallery images carry no depth — clear any stale LiDAR volume/regions from a prior capture.
+      volumeCm3: null,
+      items: null,
     });
   };
 
@@ -296,6 +352,11 @@ export function ReviewMealScreen({ route, navigation }: any) {
       return;
     }
 
+    // Retaking abandons the current scan; the next capture starts a fresh one.
+    useScanStore.getState().clearScan();
+    appliedScanIdRef.current = null;
+    setActiveScanId(undefined);
+
     // Directly reopen the in-app camera from review state.
     navigation.setParams({
       imageUri: undefined,
@@ -303,6 +364,10 @@ export function ReviewMealScreen({ route, navigation }: any) {
       imageFileName: undefined,
       openCamera: true,
       imgWcm: scaleHintCm,
+      scanId: undefined,
+      // Reset LiDAR volume/regions on retake; the next capture supplies a fresh reading (or none).
+      volumeCm3: null,
+      items: null,
     });
   };
 
@@ -333,18 +398,6 @@ export function ReviewMealScreen({ route, navigation }: any) {
 
     setTotal(newTotal);
   }, [items]);
-
-  // High-performance image compression (Web Worker on web, expo-image-manipulator on native)
-  // Keep uploads close to the backend's 1024px optimization target.
-  // Portion/scale reasoning still uses img_w_cm metadata, so smaller images do not remove the
-  // 3D volume estimate path.
-  const { compress: compressImage } = useImageCompressor({
-    defaultOptions: {
-      maxDimension: Platform.OS === 'web' ? 1024 : 896,
-      quality: Platform.OS === 'web' ? 0.76 : 0.68,
-      targetSize: Platform.OS === 'web' ? 900_000 : 650_000,
-    },
-  });
 
   // Camera permission is now requested via the "Continue" button in the pre-prompt UI,
   // not auto-triggered. We only track the ref for refresh logic.
@@ -461,11 +514,12 @@ export function ReviewMealScreen({ route, navigation }: any) {
       return;
     }
 
-    // Wait until we have an image URI (camera capture / gallery pick).
-    // Reset loading to false to avoid stuck spinner when imageUri is cleared
-    // (e.g., user pressed "Retake photo" while a previous analysis was in-flight).
+    // No new photo: either we're re-attached to a background scan via { scanId } (leave loading
+    // on — the consume effect below resolves it) or there is simply nothing to do.
     if (!imageUri) {
-      setLoading(false);
+      if (!routeScanId) {
+        setLoading(false);
+      }
       return;
     }
 
@@ -489,155 +543,95 @@ export function ReviewMealScreen({ route, navigation }: any) {
     setShowSuccess(false);
     successAnim.setValue(0);
 
-    // Animation phases: 1 → 2 → 3, then stays on 3 until analysis completes
-    // Each phase lasts 1.5 seconds, completing one full cycle in 4.5 seconds
-    let isCancelled = false;
-    const PHASE_DURATION = 1500; // 1.5 seconds per phase
+    // Hand the pipeline (compress → upload+analyze) to the scan store: it keeps running if the
+    // user leaves this screen ("Continue in background"), and the Dashboard chip can track it.
+    appliedScanIdRef.current = null;
+    const newScanId = useScanStore.getState().startScan({
+      imageUri,
+      imageMimeType,
+      imageFileName,
+      metadata: { img_w_cm: scaleHintCm, volume_cm3: volumeHintCm, items: itemsHint },
+    });
+    setActiveScanId(newScanId);
+  }, [imageFileName, imageMimeType, imageUri, retryCount, isViewingExisting]);
 
-    const timer1 = setTimeout(() => {
-      if (!isCancelled) setPhase(2);
-    }, PHASE_DURATION);
+  // Consume the bound scan's state (result, error, progress) from the store.
+  useEffect(() => {
+    if (isViewingExisting || !activeScanId) {
+      return;
+    }
 
-    const timer2 = setTimeout(() => {
-      if (!isCancelled) setPhase(3);
-    }, PHASE_DURATION * 2);
-
-    const analyze = async () => {
-      try {
-        let uploadUri = imageUri;
-        let uploadMimeType = normalizeRouteMimeType(imageMimeType);
-        let uploadFileName = imageFileName;
-        let retriedWithOriginal = false;
-        const isHeicSource = isHeicLikeSource(uploadMimeType, imageFileName || imageUri);
-
-        // HEIC/HEIF is unstable in browser/native client-side transcode paths.
-        // Send the original file and let uploadImage / backend handle it directly.
-        if (isHeicSource) {
-          console.log('[ReviewMealScreen] Skipping client-side compression for HEIC/HEIF source');
-        } else {
-          // Compress the image using off-main-thread processing
-          // This keeps the analyzing animation smooth at 60fps even for 4K photos
-          try {
-            console.log('[ReviewMealScreen] Starting off-thread compression...');
-            const compressed = await compressImage(imageUri);
-            console.log('[ReviewMealScreen] Compression complete:', {
-              originalSize: compressed.originalSize,
-              compressedSize: compressed.size,
-              ratio: (compressed.ratio * 100).toFixed(1) + '%',
-              duration: compressed.duration.toFixed(0) + 'ms',
-            });
-
-            // Use the compressed URI for upload
-            if (compressed.uri) {
-              uploadUri = compressed.uri;
-              uploadMimeType = 'image/jpeg';
-              setProcessedImageUri(compressed.uri);
-            }
-          } catch (compressionError) {
-            console.warn('Image compression failed, using original image', compressionError);
-          }
-        }
-
-        let response;
-        try {
-          response = await nutritionApi.analyzeFoodImage(
-            uploadUri,
-            { img_w_cm: scaleHintCm },
-            { sourceMimeType: uploadMimeType, sourceFileName: uploadFileName }
-          );
-        } catch (analysisError) {
-          const shouldRetryOriginal = uploadUri !== imageUri;
-          if (!shouldRetryOriginal) {
-            throw analysisError;
-          }
-
-          retriedWithOriginal = true;
-          console.warn(
-            '[ReviewMealScreen] Compressed upload failed, retrying with original image URI',
-            analysisError
-          );
-          setProcessedImageUri(imageUri);
-          uploadMimeType = normalizeRouteMimeType(imageMimeType);
-          uploadFileName = imageFileName;
-          response = await nutritionApi.analyzeFoodImage(
-            imageUri,
-            { img_w_cm: scaleHintCm },
-            { sourceMimeType: uploadMimeType, sourceFileName: uploadFileName }
-          );
-        }
-
-        // Only update state if not cancelled (component still mounted)
-        if (!isCancelled) {
-          if (retriedWithOriginal) {
-            setProcessedImageUri(imageUri);
-          }
-
-          // Store base nutrition for adjustment math
-          response.items.forEach(item => {
-            if (item.amount > 0) {
-              baseNutrition.set(item.id, {
-                calories: item.calories / item.amount,
-                protein: item.protein / item.amount,
-                carbs: item.carbs / item.amount,
-                fat: item.fat / item.amount,
-                fiber: item.fiber ? item.fiber / item.amount : 0,
-                sugar: item.sugar ? item.sugar / item.amount : 0,
-                glycemicLoad: item.glycemicLoad ? item.glycemicLoad / item.amount : 0,
-              });
-            }
-          });
-
-          setItems(response.items);
-          setTotal(response.totalNutrition);
-          setServerImageUrl(response.imageUrl);
-          setLoading(false);
-        }
-      } catch (error: any) {
-        // Don't show error if cancelled
-        if (isCancelled) return;
-
-        console.error('Food analysis failed:', error);
-
-        // Parse error message for user-friendly display
-        let errorTitle = 'Analysis Failed';
-        let errorMessage = 'Failed to analyze the image. Please try again.';
-
-        const errorString = error?.message || error?.data?.message || String(error);
-
-        if (errorString.includes('too large') || errorString.includes('10MB')) {
-          errorTitle = 'Image Too Large';
-          errorMessage = 'The image is too large. Please take a photo with lower resolution or try a different image.';
-        } else if (errorString.includes('API key expired') || errorString.includes('API_KEY_INVALID')) {
-          errorTitle = 'Service Temporarily Unavailable';
-          errorMessage = 'The food recognition service is temporarily unavailable. Please try again later or contact support.';
-        } else if (errorString.includes('providers failed') || errorString.includes('recognize foods')) {
-          errorTitle = 'Recognition Failed';
-          errorMessage = 'Could not recognize food in this image. Please try taking a clearer photo with good lighting, capturing the food from above.';
-        } else if (errorString.includes('Network') || errorString.includes('fetch') || errorString.includes('CONNECTION')) {
-          errorTitle = 'Connection Error';
-          errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
-        } else if (errorString.includes('timeout') || errorString.includes('408')) {
-          errorTitle = 'Request Timeout';
-          errorMessage = 'The analysis is taking too long. Please try again with a smaller image.';
-        }
-
-        // Store error inline so the screen always shows a visible error state with retry options.
-        // Previously, errors were only shown via Alert.alert which could be dismissed without action,
-        // leaving the screen in a blank state with no way to recover.
-        setAnalysisError({ title: errorTitle, message: errorMessage });
+    if (!storeScan || storeScan.scanId !== activeScanId) {
+      // The scan was replaced or cleared elsewhere; a chip-reopened screen has nothing to wait for.
+      if (routeScanId === activeScanId) {
         setLoading(false);
       }
-    };
+      return;
+    }
 
-    analyze();
+    if (storeScan.processedImageUri) {
+      setProcessedImageUri((prev) => (prev === storeScan.processedImageUri ? prev : storeScan.processedImageUri));
+    }
 
-    return () => {
-      // Cleanup: cancel animation timers if component unmounts
-      isCancelled = true;
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+    if (storeScan.status === 'ready' && storeScan.response) {
+      if (appliedScanIdRef.current === activeScanId) {
+        return;
+      }
+      appliedScanIdRef.current = activeScanId;
+
+      const response = storeScan.response;
+      // Store base nutrition for adjustment math
+      response.items.forEach(item => {
+        if (item.amount > 0) {
+          baseNutrition.set(item.id, {
+            calories: item.calories / item.amount,
+            protein: item.protein / item.amount,
+            carbs: item.carbs / item.amount,
+            fat: item.fat / item.amount,
+            fiber: item.fiber ? item.fiber / item.amount : 0,
+            sugar: item.sugar ? item.sugar / item.amount : 0,
+            glycemicLoad: item.glycemicLoad ? item.glycemicLoad / item.amount : 0,
+          });
+        }
+      });
+
+      setItems(response.items);
+      setTotal(response.totalNutrition);
+      setServerImageUrl(response.imageUrl);
+      setAnalysisError(null);
+      setLoading(false);
+      // One-question-at-a-time clarifications (low-confidence portion, hidden fats).
+      const questions = buildClarifyQuestions(response.items);
+      setClarifyQueue(questions);
+      setClarifyTotal(questions.length);
+      setPortionFactors(new Map());
+      useScanStore.getState().markConsumed(activeScanId);
+    } else if (storeScan.status === 'error' && storeScan.error) {
+      setAnalysisError(storeScan.error);
+      setLoading(false);
+      useScanStore.getState().markConsumed(activeScanId);
+    } else {
+      setLoading(true);
+    }
+  }, [storeScan, activeScanId, isViewingExisting, routeScanId]);
+
+  // Drive the hero's phase (Scan → Portion → Macros) from real scan progress.
+  useEffect(() => {
+    if (!loading || !scan) {
+      return;
+    }
+    const tick = () => {
+      if (scan.status === 'compressing') {
+        setPhase(1);
+        return;
+      }
+      const fraction = (Date.now() - scan.startedAt) / (scan.expectedMs || 6000);
+      setPhase(fraction < 0.45 ? 1 : fraction < 0.75 ? 2 : 3);
     };
-  }, [imageFileName, imageMimeType, imageUri, retryCount, isViewingExisting]);
+    tick();
+    const timer = setInterval(tick, 500);
+    return () => clearInterval(timer);
+  }, [loading, scan?.scanId, scan?.status, scan?.startedAt, scan?.expectedMs]);
 
   const openGallery = async () => {
     // On native, show pre-permission modal before accessing photo library
@@ -746,32 +740,60 @@ export function ReviewMealScreen({ route, navigation }: any) {
       );
     }
 
+    const handleCameraCancel = () => {
+      if (navigation.canGoBack()) navigation.goBack();
+      else navigation.navigate('Main', { screen: 'Dashboard' });
+    };
+
     return (
       <View style={styles.cameraContainer}>
-        <CameraView
-          onCapture={(uri) => navigation.setParams({
-            imageUri: uri,
-            imageMimeType: undefined,
-            imageFileName: undefined,
-            openCamera: false,
-            imgWcm: scaleHintCm,
-          })}
-          onCancel={() => {
-            if (navigation.canGoBack()) navigation.goBack();
-            else navigation.navigate('Main', { screen: 'Dashboard' });
-          }}
-          onGalleryPress={openGallery}
-          guideText="Align food here"
-          processing={false}
-          showReticle
-          captureButtonVariant="glass"
-          autoUsePhoto
-        />
+        {useDepthCapture ? (
+          <VisionCameraView
+            onCapture={(uri, metadata) => navigation.setParams({
+              imageUri: uri,
+              imageMimeType: undefined,
+              imageFileName: undefined,
+              openCamera: false,
+              // Use the depth-derived real-world width when available; otherwise fall back.
+              imgWcm: typeof metadata?.imgWcm === 'number' ? metadata.imgWcm : scaleHintCm,
+              // Absolute LiDAR food volume for geometric portion refinement (null on non-depth captures).
+              volumeCm3: typeof metadata?.volumeCm3 === 'number' ? metadata.volumeCm3 : null,
+              // Per-item segmented regions for per-item refinement (null when segmentation absent).
+              items: Array.isArray(metadata?.items) ? metadata.items : null,
+            })}
+            onCancel={handleCameraCancel}
+            onGalleryPress={openGallery}
+            guideText="Align food here"
+            processing={false}
+            autoUsePhoto
+          />
+        ) : (
+          <CameraView
+            onCapture={(uri) => navigation.setParams({
+              imageUri: uri,
+              imageMimeType: undefined,
+              imageFileName: undefined,
+              openCamera: false,
+              imgWcm: scaleHintCm,
+              // Basic (non-depth) camera has no LiDAR volume/regions — never refine on stale data.
+              volumeCm3: null,
+              items: null,
+            })}
+            onCancel={handleCameraCancel}
+            onGalleryPress={openGallery}
+            guideText="Align food here"
+            processing={false}
+            showReticle
+            captureButtonVariant="glass"
+            autoUsePhoto
+          />
+        )}
       </View>
     );
   }
 
   const handleAmountChange = (id: string, delta: number) => {
+    const factor = portionFactors.get(id) ?? 1;
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
@@ -794,21 +816,81 @@ export function ReviewMealScreen({ route, navigation }: any) {
             };
           }
 
+          const scale = newAmount * factor;
           return {
             ...item,
             amount: newAmount,
-            calories: base.calories * newAmount,
-            protein: base.protein * newAmount,
-            carbs: base.carbs * newAmount,
-            fat: base.fat * newAmount,
-            fiber: base.fiber ? base.fiber * newAmount : undefined,
-            sugar: base.sugar ? base.sugar * newAmount : undefined,
-            glycemicLoad: base.glycemicLoad ? base.glycemicLoad * newAmount : undefined,
+            calories: base.calories * scale,
+            protein: base.protein * scale,
+            carbs: base.carbs * scale,
+            fat: base.fat * scale,
+            fiber: base.fiber ? base.fiber * scale : undefined,
+            sugar: base.sugar ? base.sugar * scale : undefined,
+            glycemicLoad: base.glycemicLoad ? base.glycemicLoad * scale : undefined,
           };
         }
         return item;
       })
     );
+  };
+
+  /** One-tap ½× / 1× / 1½× portion multiplier relative to the detected size. */
+  const handlePortionFactor = (id: string, factor: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setPortionFactors((prev) => new Map(prev).set(id, factor));
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const base = baseNutrition.get(id);
+        if (!base || item.amount <= 0) return item;
+        const scale = item.amount * factor;
+        return {
+          ...item,
+          calories: base.calories * scale,
+          protein: base.protein * scale,
+          carbs: base.carbs * scale,
+          fat: base.fat * scale,
+          fiber: base.fiber ? base.fiber * scale : undefined,
+          sugar: base.sugar ? base.sugar * scale : undefined,
+          glycemicLoad: base.glycemicLoad ? base.glycemicLoad * scale : undefined,
+        };
+      })
+    );
+  };
+
+  /** Remove a mis-recognized item entirely. */
+  const handleRemoveItem = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    setClarifyQueue((prev) => prev.filter((q) => q.itemId !== id));
+  };
+
+  /** Apply a one-tap clarify answer; refresh per-unit bases for changed/added items. */
+  const handleClarifyAnswer = (question: ClarifyQuestion, optionId: string) => {
+    setItems((prev) => {
+      const { items: next, changedIds } = applyClarifyAnswer(prev, question, optionId);
+      changedIds.forEach((id) => {
+        const changed = next.find((i) => i.id === id);
+        if (changed && changed.amount > 0) {
+          baseNutrition.set(id, {
+            calories: changed.calories / changed.amount,
+            protein: changed.protein / changed.amount,
+            carbs: changed.carbs / changed.amount,
+            fat: changed.fat / changed.amount,
+            fiber: changed.fiber ? changed.fiber / changed.amount : 0,
+            sugar: changed.sugar ? changed.sugar / changed.amount : 0,
+            glycemicLoad: changed.glycemicLoad ? changed.glycemicLoad / changed.amount : 0,
+          });
+          setPortionFactors((prevFactors) => new Map(prevFactors).set(id, 1));
+        }
+      });
+      return next;
+    });
+    setClarifyQueue((prev) => prev.filter((q) => q.id !== question.id));
+  };
+
+  const handleClarifySkip = (question: ClarifyQuestion) => {
+    setClarifyQueue((prev) => prev.filter((q) => q.id !== question.id));
   };
 
   const handleSave = async () => {
@@ -843,13 +925,38 @@ export function ReviewMealScreen({ route, navigation }: any) {
         return;
       }
 
-      await nutritionApi.saveMealFromImage({
+      const savedMeal = await nutritionApi.saveMealFromImage({
         imageUri: processedImageUri,
         items: items,
         totalNutrition: total,
         // Prefer server URL if upload succeeded; otherwise fall back to local processed image
         imageUrl: serverImageUrl || processedImageUri,
       });
+      setSavedMealId(savedMeal?.id ?? null);
+
+      trackEvent('meal_logged', { source: 'scan', item_count: items.length });
+
+      // Immediate value: what's left today (computed from the pre-save snapshot so the
+      // just-saved meal isn't double counted) and ONE concrete next step.
+      const daily = dailyNutrition.data;
+      const kcalRemaining = daily.goal - (daily.calories + total.calories);
+      const proteinRemaining = daily.protein.goal - (daily.protein.current + total.protein);
+      setPostLog({
+        kcalRemaining: Number.isFinite(kcalRemaining) ? kcalRemaining : null,
+        proteinRemaining: Number.isFinite(proteinRemaining) ? proteinRemaining : null,
+        nextStep: buildNextStep({
+          kcalRemaining: Number.isFinite(kcalRemaining) ? kcalRemaining : 0,
+          proteinRemaining: Number.isFinite(proteinRemaining) ? proteinRemaining : 0,
+          hour: new Date().getHours(),
+        }),
+        // Captured before clearScan() below nulls the bound scan.
+        mealSlot: scan?.mealSlot ?? 'Meal',
+      });
+
+      // The scan is fully consumed once saved — drop it so the Dashboard chip disappears.
+      if (activeScanId) {
+        useScanStore.getState().clearScan(activeScanId);
+      }
 
       // Invalidate caches so dashboard, meal log, and insights refresh immediately
       queryClient.invalidateQueries({ queryKey: ['dailyNutrition'] });
@@ -859,19 +966,14 @@ export function ReviewMealScreen({ route, navigation }: any) {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      // Show success animation
+      // Show the post-log sheet (stays until the user taps Done/Undo — no auto-navigation,
+      // so Undo is a real option rather than a race against a timer).
       setShowSuccess(true);
-      Animated.sequence([
-        Animated.timing(successAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.delay(800),
-      ]).start(() => {
-        // Navigate to Dashboard after animation
-        navigation.navigate('Main', { screen: 'Dashboard' });
-      });
+      Animated.timing(successAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
     } catch (error) {
       console.error('Save failed:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -893,6 +995,28 @@ export function ReviewMealScreen({ route, navigation }: any) {
 
       Alert.alert(title, message);
       setSaving(false);
+    }
+  };
+
+  /** Post-log Undo: deletes the just-created meal and returns to the editable review state. */
+  const handleUndoSave = async () => {
+    if (!savedMealId || undoing) return;
+    setUndoing(true);
+    try {
+      await nutritionApi.deleteMeal(savedMealId);
+      queryClient.invalidateQueries({ queryKey: ['dailyNutrition'] });
+      queryClient.invalidateQueries({ queryKey: ['meal-history'] });
+      queryClient.invalidateQueries({ queryKey: ['weekly-insights'] });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      setSavedMealId(null);
+      setPostLog(null);
+      setShowSuccess(false);
+      setSaving(false);
+      successAnim.setValue(0);
+    } catch {
+      Alert.alert('Undo failed', 'Could not remove the meal. You can delete it from your meal history.');
+    } finally {
+      setUndoing(false);
     }
   };
 
@@ -967,7 +1091,18 @@ export function ReviewMealScreen({ route, navigation }: any) {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {isViewingExisting ? 'Meal Details' : 'Review your meal'}
         </Text>
-        <View style={styles.headerSpacer} />
+        {isViewingExisting ? (
+          <Pressable
+            onPress={() => setShareSheetVisible(true)}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Share this meal"
+          >
+            <Text style={styles.headerShareText}>Share</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
 
       <ScrollView
@@ -982,12 +1117,21 @@ export function ReviewMealScreen({ route, navigation }: any) {
             <Animated.View style={[styles.processingHeroWrap, heroAnimatedStyle]}>
               <RecognitionProcessingHero
                 imageUri={processedImageUri}
-                modeLabel="AURA MEAL SCAN"
+                modeLabel="METRIFUL MEAL SCAN"
                 title={loadingText}
                 subtitle={loadingSubtitle}
                 activePhase={phase}
                 phaseLabels={phaseLabels}
                 callouts={['Food contours', 'Volume pass', 'Macro estimate']}
+              />
+              {/* Uber-Eats-style process visibility: staged checklist + honest ETA + escape hatch */}
+              <ScanStagesList
+                status={scan?.status ?? 'analyzing'}
+                startedAt={scan?.startedAt ?? null}
+                expectedMs={scan?.expectedMs ?? 6000}
+                onContinueInBackground={() => {
+                  navigation.navigate('Main', { screen: 'Dashboard' });
+                }}
               />
             </Animated.View>
           ) : (
@@ -1073,7 +1217,25 @@ export function ReviewMealScreen({ route, navigation }: any) {
           {!loading && canSaveMeal ? (
             <Animated.View style={detailsAnimatedStyle}>
               {total && <NutritionSummaryCard total={total} />}
+              <Pressable
+                onPress={() => setHowSheetVisible(true)}
+                style={styles.howEstimatedLink}
+                accessibilityRole="button"
+                accessibilityLabel="How was this estimated?"
+              >
+                <Text style={styles.howEstimatedLinkText}>How was this estimated?</Text>
+              </Pressable>
               <AIDisclaimer />
+
+              {/* One high-value question at a time — never a form */}
+              {!isViewingExisting && clarifyQueue.length > 0 && (
+                <ClarifyQuestionCard
+                  question={clarifyQueue[0]}
+                  positionLabel={clarifyTotal > 1 ? `${clarifyTotal - clarifyQueue.length + 1} of ${clarifyTotal}` : undefined}
+                  onAnswer={(optionId) => handleClarifyAnswer(clarifyQueue[0], optionId)}
+                  onSkip={() => handleClarifySkip(clarifyQueue[0])}
+                />
+              )}
 
               <View style={[styles.sectionHeader, isNarrowPhone && styles.sectionHeaderCompact]}>
                 <Text style={styles.sectionTitle}>Detected items</Text>
@@ -1085,12 +1247,15 @@ export function ReviewMealScreen({ route, navigation }: any) {
                   item={item}
                   onIncrease={() => handleAmountChange(item.id, 1)}
                   onDecrease={() => handleAmountChange(item.id, -1)}
+                  onRemove={items.length > 1 ? () => handleRemoveItem(item.id) : undefined}
+                  portionFactor={portionFactors.get(item.id) ?? 1}
+                  onPortionFactor={(factor) => handlePortionFactor(item.id, factor)}
                 />
               ))}
 
               {total?.glycemicLoad != null && (
                 <View style={styles.glCard}>
-                  <Text style={styles.glCardTitle}>Estimated Blood Sugar Impact</Text>
+                  <Text style={styles.glCardTitle}>Estimated Glycemic Impact</Text>
                   <View style={styles.glRow}>
                     <View style={styles.glBarBg}>
                       <View
@@ -1129,7 +1294,11 @@ export function ReviewMealScreen({ route, navigation }: any) {
                       ? 'Low — gentle on blood sugar'
                       : total.glycemicLoad <= 20
                       ? 'Medium — moderate blood sugar rise'
-                      : 'High — significant blood sugar spike'}
+                      : 'High — may raise blood sugar noticeably'}
+                  </Text>
+                  <Text style={styles.glDisclaimer}>
+                    General estimate from carbohydrate content — not a personal blood-glucose
+                    measurement or medical prediction.
                   </Text>
                   <Pressable
                     onPress={() => openExternalUrl(
@@ -1239,7 +1408,7 @@ export function ReviewMealScreen({ route, navigation }: any) {
         </View>
       )}
 
-      {/* Success Animation Overlay */}
+      {/* Post-log value sheet: what happened, what's left today, ONE next step, and Undo. */}
       {showSuccess && total && (
         <Animated.View
           style={[
@@ -1249,6 +1418,7 @@ export function ReviewMealScreen({ route, navigation }: any) {
         >
           <Pressable
             style={StyleSheet.absoluteFill}
+            accessibilityLabel="Dismiss and go to home"
             onPress={() => {
               setShowSuccess(false);
               navigation.navigate('Main', { screen: 'Dashboard' });
@@ -1280,7 +1450,7 @@ export function ReviewMealScreen({ route, navigation }: any) {
               <View style={styles.successIconCircle}>
                 <Check size={44} color="#0E7490" />
               </View>
-              <Text style={styles.successTitle}>Meal Saved!</Text>
+              <Text style={styles.successTitle}>{postLog?.mealSlot ?? 'Meal'} logged</Text>
               <View style={styles.successStats}>
                 <View style={styles.successStatItem}>
                   <Text style={styles.successStatValue}>+{Math.round(total.calories)}</Text>
@@ -1297,12 +1467,90 @@ export function ReviewMealScreen({ route, navigation }: any) {
                   <Text style={styles.successStatLabel}>carbs</Text>
                 </View>
               </View>
-              <Text style={styles.successSubtitle}>Added to today's nutrition</Text>
-              <Text style={styles.successTapHint}>Tap anywhere to continue</Text>
+
+              {postLog && postLog.kcalRemaining != null && postLog.proteinRemaining != null && (
+                <View style={styles.remainingRow}>
+                  <Text style={styles.remainingText}>
+                    {postLog.kcalRemaining >= 0
+                      ? `${Math.round(postLog.kcalRemaining)} kcal remaining today`
+                      : `About ${Math.abs(Math.round(postLog.kcalRemaining))} kcal above today’s current target`}
+                  </Text>
+                  <Text style={styles.remainingText}>
+                    {postLog.proteinRemaining > 0
+                      ? `${Math.round(postLog.proteinRemaining)} g protein remaining`
+                      : 'Protein target reached'}
+                  </Text>
+                </View>
+              )}
+
+              {postLog?.nextStep && (
+                <View style={styles.nextStepCard}>
+                  <Text style={styles.nextStepLabel}>Best next step</Text>
+                  <Text style={styles.nextStepText}>{postLog.nextStep}</Text>
+                </View>
+              )}
+
+              <View style={styles.postLogActions}>
+                {savedMealId != null && (
+                  <Pressable
+                    onPress={handleUndoSave}
+                    disabled={undoing}
+                    style={[styles.postLogUndoBtn, undoing && { opacity: 0.6 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Undo saving this meal"
+                  >
+                    {undoing ? (
+                      <ActivityIndicator size="small" color="#0F172A" />
+                    ) : (
+                      <Text style={styles.postLogUndoText}>Undo</Text>
+                    )}
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => {
+                    setShowSuccess(false);
+                    navigation.navigate('Main', { screen: 'Dashboard' });
+                  }}
+                  style={styles.postLogDoneBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Done"
+                >
+                  <Text style={styles.postLogDoneText}>Done</Text>
+                </Pressable>
+              </View>
             </View>
           </Animated.View>
         </Animated.View>
       )}
+      {/* Opt-in share (existing meals): sensitive fields off by default */}
+      {isViewingExisting && total && (
+        <ShareMealSheet
+          visible={shareSheetVisible}
+          onClose={() => setShareSheetVisible(false)}
+          meal={{
+            mealType: meal?.mealType || 'Meal',
+            foodNames: items.map((i) => i.name).filter(Boolean),
+            calories: total.calories,
+            protein: total.protein ?? null,
+          }}
+        />
+      )}
+      {/* "How was this estimated?" trust drawer */}
+      <HowEstimatedSheet
+        visible={howSheetVisible}
+        onClose={() => setHowSheetVisible(false)}
+        usedDepth={scan?.usedDepth ?? Boolean(volumeHintCm)}
+        itemCount={items.length}
+        avgConfidence={(() => {
+          const withConf = items.filter((i) => typeof i.confidence === 'number');
+          if (withConf.length === 0) return null;
+          return withConf.reduce((acc, i) => acc + (i.confidence ?? 0), 0) / withConf.length;
+        })()}
+        onViewSources={() => {
+          setHowSheetVisible(false);
+          navigation.navigate('AboutNutritionData' as any);
+        }}
+      />
       {/* Pre-permission modal for photo library (Pick another flow) */}
       <PermissionRequestModal
         visible={galleryPermModal}
@@ -1405,6 +1653,11 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 40,
+  },
+  headerShareText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0891B2',
   },
   content: {
     paddingBottom: 120, // Extra space for absolute positioned bottom bar
@@ -1636,6 +1889,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     color: '#6B7280',
+  },
+  glDisclaimer: {
+    marginTop: 6,
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#9CA3AF',
   },
   glSourceRow: {
     marginTop: 10,
@@ -1898,5 +2157,83 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 16,
+  },
+  howEstimatedLink: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  howEstimatedLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0891B2',
+    textDecorationLine: 'underline',
+  },
+  remainingRow: {
+    marginTop: 10,
+    gap: 2,
+    alignItems: 'center',
+  },
+  remainingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  nextStepCard: {
+    marginTop: 12,
+    alignSelf: 'stretch',
+    borderRadius: 14,
+    backgroundColor: 'rgba(201, 106, 52, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(201, 106, 52, 0.18)',
+    padding: 12,
+    gap: 4,
+  },
+  nextStepLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: '#A7552A',
+    textTransform: 'uppercase',
+  },
+  nextStepText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#3E3C38',
+  },
+  postLogActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+    alignSelf: 'stretch',
+  },
+  postLogUndoBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postLogUndoText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  postLogDoneBtn: {
+    flex: 2,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: BRAND_COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postLogDoneText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

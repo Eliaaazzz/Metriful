@@ -59,7 +59,7 @@ export const FriendsFeedCard: React.FC<FriendsFeedCardProps> = ({
       <View style={styles.header}>
         <View style={styles.titleGroup}>
           <View style={styles.iconBubble}>
-            <Users size={16} color="#10B981" weight="fill" />
+            <Users size={16} color="#111111" weight="fill" />
           </View>
           <View>
             <Text variant="body" weight="bold" style={styles.title}>Friends feed</Text>
@@ -77,7 +77,7 @@ export const FriendsFeedCard: React.FC<FriendsFeedCardProps> = ({
 
       {isEmpty ? (
         <Pressable onPress={onAddFriend} style={styles.emptyCard}>
-          <UserPlus size={20} color={colors.light.primary} weight="bold" />
+          <UserPlus size={20} color="#111111" weight="bold" />
           <Text variant="caption" weight="semibold" style={styles.emptyText}>
             Add a friend to start the feed
           </Text>
@@ -87,7 +87,9 @@ export const FriendsFeedCard: React.FC<FriendsFeedCardProps> = ({
           {items.map((item) => (
             <View key={item.id} style={styles.activityRow}>
               <View style={styles.avatarBubble}>
-                <Text style={{ fontSize: 16 }}>{iconForKind(item.kind)}</Text>
+                <Text variant="body" weight="bold" style={styles.avatarInitial}>
+                  {(item.title || '?').charAt(0).toUpperCase()}
+                </Text>
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text variant="caption" weight="semibold" numberOfLines={1} style={styles.activityTitle}>
@@ -146,19 +148,21 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(16,185,129,0.16)',
+    backgroundColor: '#F3F3F3',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: { color: colors.light.textPrimary },
   subtitle: { color: colors.light.textSecondary, opacity: 0.8 },
-  seeAllText: { color: colors.light.primary },
+  seeAllText: {
+    color: colors.light.textPrimary,
+    textDecorationLine: 'underline',
+    textDecorationColor: 'rgba(17,17,17,0.3)',
+  },
   emptyCard: {
     marginHorizontal: spacing.lg,
-    backgroundColor: '#FFFFFF',
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(17,17,17,0.06)',
+    backgroundColor: '#F6F6F6',
+    borderRadius: 12,
     padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -167,10 +171,8 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.light.textPrimary },
   list: {
     marginHorizontal: spacing.lg,
-    backgroundColor: '#FFFFFF',
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(17,17,17,0.06)',
+    backgroundColor: '#F6F6F6',
+    borderRadius: 12,
     overflow: 'hidden',
   },
   activityRow: {
@@ -180,15 +182,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(17,17,17,0.04)',
+    borderBottomColor: 'rgba(17,17,17,0.08)',
   },
   avatarBubble: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(17,17,17,0.06)',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarInitial: {
+    color: colors.light.textPrimary,
   },
   activityTitle: { color: colors.light.textPrimary },
   activityMeta: { color: colors.light.textSecondary, opacity: 0.85 },
@@ -202,7 +207,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(17,17,17,0.06)',
   },
   kudosBtnActive: {
-    backgroundColor: '#EF4444',
+    backgroundColor: '#111111',
   },
   kudosText: { color: colors.light.textPrimary },
   kudosTextActive: { color: '#FFFFFF' },

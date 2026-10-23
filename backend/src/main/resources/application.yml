@@ -69,14 +69,45 @@ app:
     api-key: ${ANTHROPIC_API_KEY:}
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_MODEL:gemini-2.0-flash}
+    # gemini-2.5-flash + thinking disabled ≈ halves calorie error vs 2.0-flash at the same ~4s
+    # latency (Nutrition5k benchmark; docs/calorie-accuracy-investigation.md §7).
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
     enabled: ${GEMINI_ENABLED:true}
     use-vertex-ai: ${GEMINI_USE_VERTEX_AI:false}
     gcp-project-id: ${GEMINI_GCP_PROJECT_ID:gen-lang-client-0295973830}
     gcp-region: ${GEMINI_GCP_REGION:australia-southeast2}
+    # Gemini 2.5 "thinking" budget (tokens). 0 = disabled = fast interactive path (<5s). Thinking
+    # added latency without accuracy on this task; only applied to 2.5-family models.
+    thinking-budget: ${GEMINI_THINKING_BUDGET:0}
     # Controlled generation (responseSchema) for guaranteed, stably-ordered JSON output.
     # On by default; set to false only if a future model rejects the schema.
     structured-output: ${GEMINI_STRUCTURED_OUTPUT:true}
+  nutrition:
+    # Geometric portion refinement: when the client sends an absolute LiDAR food volume,
+    # correct portion/calories via mass = volume × food-density and blend (geometric mean)
+    # with the model's own estimate. No-op without volume. See
+    # docs/calorie-accuracy-roadmap-25-to-15.md §10. All values generalize (no per-domain fit).
+    physics-refine:
+      enabled: ${NUTRITION_PHYSICS_REFINE_ENABLED:true}
+      # Per-item (mixed-plate) refinement: assign each on-device depth mask to its food and correct
+      # each independently (per-item volume × per-food density). DEFAULT OFF: an N5k eval (n=100,
+      # docs §11) measured per-item ~23% vs whole-plate geomean ~16% median calorie APE — per-item
+      # loses in every bucket (per-food energy-density multiply amplifies partition noise). Kept
+      # behind the flag for the clean-mask / well-separated-plate case; not the shipped default.
+      per-item-enabled: ${NUTRITION_PHYSICS_PER_ITEM_ENABLED:false}
+      # Learned fusion (docs §12): log y = b + w·log(flash) + (1−w)·log(physics), fit on N5k cafe1
+      # (n=100) and validated ZERO-SHOT on cafe2 (n=60): median APE 30.5%→27.7%, signed bias
+      # +11.9%→−1.9%, P90 107.7%→76.5% vs the fixed 50:50 geomean. Both are global constants.
+      # Weight w on the model's own calorie estimate, [0,1].
+      blend-weight: ${NUTRITION_PHYSICS_BLEND_WEIGHT:0.75}
+      # Log-space intercept e^b — mostly corrects the vision model's systematic over-estimation.
+      # Outside [0.5, 2.0] the service falls back to a neutral 1.0.
+      fusion-bias: ${NUTRITION_PHYSICS_FUSION_BIAS:0.862}
+      # Geometric (height-map) volume over-reads ~1.32×; divide to a true-volume basis.
+      volume-bias: ${NUTRITION_PHYSICS_VOLUME_BIAS:1.32}
+      # Clamp the portion correction so a bad volume reading can't wreck an estimate.
+      min-scale: ${NUTRITION_PHYSICS_MIN_SCALE:0.4}
+      max-scale: ${NUTRITION_PHYSICS_MAX_SCALE:2.5}
   google:
     # Comma-separated allowed audiences for Google ID tokens.
     # Example: GOOGLE_CLIENT_ID=web-client-id.apps.googleusercontent.com,ios-client-id.apps.googleusercontent.com,android-client-id.apps.googleusercontent.com

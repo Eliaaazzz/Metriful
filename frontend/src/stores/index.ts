@@ -22,3 +22,6 @@ export type { ActiveWorkoutSession } from './useWorkoutSessionStore';
 
 export { useStrengthLogStore, EXERCISE_TEMPLATES } from './useStrengthLogStore';
 export type { StrengthEntry, StrengthSet, MuscleGroup, ExercisePR } from './useStrengthLogStore';
+
+export { useScanStore, parseAnalysisError } from './useScanStore';
+export type { ActiveScan, ScanError, StartScanParams } from './useScanStore';

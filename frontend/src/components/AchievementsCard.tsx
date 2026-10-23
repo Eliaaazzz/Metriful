@@ -1,6 +1,7 @@
 import { Text } from '@/components';
-import { colors, radii, spacing } from '@/utils';
-import { Trophy } from 'phosphor-react-native';
+import { badgeArtFor, colors, radii, spacing } from '@/utils';
+import { Image } from 'expo-image';
+import { Lock, Trophy } from 'phosphor-react-native';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -78,7 +79,20 @@ export const AchievementsCard: React.FC<AchievementsCardProps> = ({
                 a.unlocked ? styles.badgeMedalUnlocked : styles.badgeMedalLocked,
               ]}
             >
-              <Text style={styles.badgeEmoji}>{a.unlocked ? a.emoji : '🔒'}</Text>
+              {badgeArtFor(a.emoji) ? (
+                <Image
+                  source={badgeArtFor(a.emoji)}
+                  style={[styles.badgeIcon, !a.unlocked && styles.badgeIconLocked] as any}
+                  contentFit="contain"
+                />
+              ) : (
+                <Text style={styles.badgeEmoji}>{a.emoji}</Text>
+              )}
+              {!a.unlocked && (
+                <View style={styles.lockCorner}>
+                  <Lock size={10} color={colors.light.textSecondary} weight="bold" />
+                </View>
+              )}
             </View>
             <Text
               variant="caption"
@@ -125,13 +139,17 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: `${colors.light.primary}1A`,
+    backgroundColor: '#F3F3F3',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: { color: colors.light.textPrimary },
   subtitle: { color: colors.light.textSecondary, opacity: 0.8 },
-  seeAllText: { color: colors.light.primary },
+  seeAllText: {
+    color: colors.light.textPrimary,
+    textDecorationLine: 'underline',
+    textDecorationColor: 'rgba(17,17,17,0.3)',
+  },
   scrollContent: {
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
@@ -150,16 +168,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeMedalUnlocked: {
-    backgroundColor: '#FFF3D6',
-    borderWidth: 3,
-    borderColor: '#F8C24F',
+    backgroundColor: '#F6F6F6',
+    borderWidth: 2,
+    borderColor: '#111111',
   },
   badgeMedalLocked: {
-    backgroundColor: 'rgba(17,17,17,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(17,17,17,0.10)',
+    backgroundColor: 'rgba(17,17,17,0.05)',
   },
   badgeEmoji: { fontSize: 28 },
+  badgeIcon: {
+    width: 52,
+    height: 52,
+  },
+  badgeIconLocked: {
+    opacity: 0.55,
+  },
+  lockCorner: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(17,17,17,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   badgeLabel: {
     color: colors.light.textPrimary,
     textAlign: 'center',
@@ -175,7 +211,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.light.primary,
+    backgroundColor: '#111111',
   },
 });
 

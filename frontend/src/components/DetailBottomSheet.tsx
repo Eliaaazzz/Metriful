@@ -15,7 +15,7 @@ import {
 
 interface DetailBottomSheetProps {
   visible: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   title?: string;
   /** Tap on backdrop dismisses (default true) */
   dismissOnBackdrop?: boolean;

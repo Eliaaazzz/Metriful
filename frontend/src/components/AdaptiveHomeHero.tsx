@@ -1,8 +1,14 @@
 import { Text } from '@/components';
-import { BRAND_COLORS, colors, radii, spacing } from '@/utils';
+import { colors, radii, spacing, springPresets } from '@/utils';
 import { CaretRight, Coffee, MoonStars, SunDim, Sun } from 'phosphor-react-native';
-import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 
 type DaySlot = 'morning' | 'afternoon' | 'evening' | 'night';
 
@@ -25,6 +31,8 @@ interface AdaptiveHomeHeroProps {
   onPrimaryAction?: () => void;
   /** Secondary CTA tap handler (browse recipes, view targets) */
   onSecondaryAction?: () => void;
+  /** Tightens the card for narrow dashboard layouts. */
+  compact?: boolean;
 }
 
 const getSlot = (date = new Date()): DaySlot => {
@@ -37,19 +45,20 @@ const getSlot = (date = new Date()): DaySlot => {
 
 interface SlotContent {
   greeting: string;
-  emoji: string;
   headline: string;
   body: string;
   primaryLabel: string;
   secondaryLabel?: string;
   icon: React.ReactNode;
-  bgGradient: [string, string];
 }
 
 /**
  * AdaptiveHomeHero — single hero card that morphs by time of day.
- * Pattern source: Apple Health's adaptive summaries + Spotify's daily Mix energy varying by time.
+ * Pattern source: Uber's homepage suggestion tiles — one contextual task, restrained
+ * surface, compact illustration, and a clear action without competing with the page hero.
  */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export const AdaptiveHomeHero: React.FC<AdaptiveHomeHeroProps> = ({
   userName,
   caloriesConsumed,
@@ -60,9 +69,15 @@ export const AdaptiveHomeHero: React.FC<AdaptiveHomeHeroProps> = ({
   mealsLoggedToday = 0,
   onPrimaryAction,
   onSecondaryAction,
+  compact = false,
 }) => {
   const slot = useMemo(() => getSlot(), []);
   const nameBit = userName ? `, ${userName}` : '';
+  const reduceMotion = useReducedMotion();
+  const primaryScale = useSharedValue(1);
+  const secondaryScale = useSharedValue(1);
+  const [primaryFocused, setPrimaryFocused] = useState(false);
+  const [secondaryFocused, setSecondaryFocused] = useState(false);
 
   const remainingCals = useMemo(() => {
     if (!caloriesTarget) return null;
@@ -79,7 +94,6 @@ export const AdaptiveHomeHero: React.FC<AdaptiveHomeHeroProps> = ({
       case 'morning':
         return {
           greeting: `Good morning${nameBit}`,
-          emoji: '🌅',
           headline:
             mealsLoggedToday > 0
               ? 'Strong start.'
@@ -90,30 +104,26 @@ export const AdaptiveHomeHero: React.FC<AdaptiveHomeHeroProps> = ({
               : 'Snap or pick a high-protein breakfast to win the morning.',
           primaryLabel: mealsLoggedToday > 0 ? 'Log a meal' : 'Snap breakfast',
           secondaryLabel: 'Browse recipes',
-          icon: <Coffee size={22} color="#FFFFFF" weight="fill" />,
-          bgGradient: ['#FF9A56', '#FFB97A'],
+          icon: <Coffee size={28} color="#111111" weight="fill" />,
         };
       case 'afternoon':
         return {
           greeting: `Good afternoon${nameBit}`,
-          emoji: '☀️',
           headline:
             remainingCals !== null
-              ? `${remainingCals} kcal to go`
+              ? `${remainingCals.toLocaleString()} kcal left today`
               : 'Keep momentum.',
           body:
             remainingProtein !== null && remainingProtein > 0
-              ? `${remainingProtein}g of protein left today. A snack now keeps the macros honest.`
+              ? `${remainingProtein}g protein remaining. A protein-forward snack can keep today on track.`
               : 'Stay on plan with a balanced lunch or smart snack.',
           primaryLabel: 'Log a meal',
-          secondaryLabel: 'Suggest a snack',
-          icon: <Sun size={22} color="#FFFFFF" weight="fill" />,
-          bgGradient: ['#F97316', '#FB923C'],
+          secondaryLabel: 'Find a snack',
+          icon: <Sun size={28} color="#111111" weight="fill" />,
         };
       case 'evening':
         return {
           greeting: `Good evening${nameBit}`,
-          emoji: '🌆',
           headline:
             dailyScore !== undefined
               ? `Today’s score: ${Math.round(dailyScore)}`
@@ -123,74 +133,123 @@ export const AdaptiveHomeHero: React.FC<AdaptiveHomeHeroProps> = ({
               ? `${remainingCals} kcal budget left. Plan a balanced dinner to finish strong.`
               : 'Log dinner to wrap up today’s plan.',
           primaryLabel: 'Log dinner',
-          secondaryLabel: 'See recap',
-          icon: <SunDim size={22} color="#FFFFFF" weight="fill" />,
-          bgGradient: ['#E11D48', '#F97316'],
+          secondaryLabel: 'Browse recipes',
+          icon: <SunDim size={28} color="#111111" weight="fill" />,
         };
       case 'night':
       default:
         return {
           greeting: `Good night${nameBit}`,
-          emoji: '🌙',
           headline:
             dailyScore !== undefined
               ? `Today landed at ${Math.round(dailyScore)}/100`
-              : 'Reviewing today.',
+              : 'Set up tomorrow.',
           body:
             mealsLoggedToday > 0
               ? `${mealsLoggedToday} ${mealsLoggedToday === 1 ? 'meal' : 'meals'} logged. Lock in the streak — tomorrow starts fresh.`
-              : 'Quick recap and you’re done. Sleep well.',
-          primaryLabel: 'View daily recap',
-          secondaryLabel: 'Tomorrow’s plan',
-          icon: <MoonStars size={22} color="#FFFFFF" weight="fill" />,
-          bgGradient: ['#312E81', '#6D28D9'],
+              : 'A quick meal log now keeps your week complete.',
+          primaryLabel: 'Log a meal',
+          secondaryLabel: 'Browse recipes',
+          icon: <MoonStars size={28} color="#111111" weight="fill" />,
         };
     }
   }, [slot, nameBit, mealsLoggedToday, remainingCals, remainingProtein, dailyScore]);
 
-  return (
-    <View style={[styles.container, { backgroundColor: content.bgGradient[0] }]}>
-      {/* Decorative second band for gradient feel without LinearGradient dependency */}
-      <View
-        pointerEvents="none"
-        style={[styles.band, { backgroundColor: content.bgGradient[1] }]}
-      />
+  const primaryAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: primaryScale.value }],
+  }));
+  const secondaryAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: secondaryScale.value }],
+  }));
 
-      <View style={styles.row}>
-        <View style={styles.iconBubble}>{content.icon}</View>
-        <View style={{ flex: 1 }}>
-          <Text variant="caption" weight="semibold" style={styles.greeting}>
-            {content.emoji}  {content.greeting}
-          </Text>
-          <Text variant="heading3" weight="bold" style={styles.headline} numberOfLines={2}>
+  const handlePrimaryPressIn = useCallback(() => {
+    if (!reduceMotion) {
+      primaryScale.value = withSpring(0.98, springPresets.tabBounce);
+    }
+  }, [primaryScale, reduceMotion]);
+  const handlePrimaryPressOut = useCallback(() => {
+    primaryScale.value = reduceMotion
+      ? 1
+      : withSpring(1, springPresets.tabBounce);
+  }, [primaryScale, reduceMotion]);
+  const handleSecondaryPressIn = useCallback(() => {
+    if (!reduceMotion) {
+      secondaryScale.value = withSpring(0.98, springPresets.tabBounce);
+    }
+  }, [reduceMotion, secondaryScale]);
+  const handleSecondaryPressOut = useCallback(() => {
+    secondaryScale.value = reduceMotion
+      ? 1
+      : withSpring(1, springPresets.tabBounce);
+  }, [reduceMotion, secondaryScale]);
+
+  return (
+    <View
+      style={[styles.container, compact && styles.containerCompact]}
+      accessibilityLabel={`Daily suggestion. ${content.headline}`}
+    >
+      <View style={styles.contentRow}>
+        <View style={styles.copyColumn}>
+          <View style={styles.greetingRow}>
+            <View style={styles.greetingRule} />
+            <Text variant="caption" weight="semibold" style={styles.greeting}>
+              {content.greeting}
+            </Text>
+          </View>
+          <Text variant="heading3" weight="bold" style={styles.headline}>
             {content.headline}
           </Text>
-          <Text variant="body" style={styles.body} numberOfLines={2}>
+          <Text variant="body" style={styles.body}>
             {content.body}
           </Text>
-        </View>
-      </View>
 
-      <View style={styles.actionRow}>
-        <Pressable
-          onPress={onPrimaryAction}
-          style={({ pressed }) => [styles.primaryBtn, pressed && { opacity: 0.85 }]}
-        >
-          <Text variant="body" weight="bold" style={styles.primaryBtnText}>
-            {content.primaryLabel}
-          </Text>
-          <CaretRight size={14} color={colors.light.textPrimary} weight="bold" />
-        </Pressable>
-        {content.secondaryLabel && (
-          <Pressable
-            onPress={onSecondaryAction}
-            style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.7 }]}
-          >
-            <Text variant="caption" weight="semibold" style={styles.secondaryBtnText}>
-              {content.secondaryLabel}
-            </Text>
-          </Pressable>
-        )}
+          <View style={styles.actionRow}>
+            <AnimatedPressable
+              accessibilityRole="button"
+              accessibilityLabel={content.primaryLabel}
+              disabled={!onPrimaryAction}
+              onPress={onPrimaryAction}
+              onPressIn={handlePrimaryPressIn}
+              onPressOut={handlePrimaryPressOut}
+              onFocus={() => setPrimaryFocused(true)}
+              onBlur={() => setPrimaryFocused(false)}
+              style={[
+                styles.primaryBtn,
+                primaryAnimatedStyle,
+                primaryFocused && styles.focusRing,
+              ]}
+            >
+              <Text variant="body" weight="bold" style={styles.primaryBtnText}>
+                {content.primaryLabel}
+              </Text>
+              <CaretRight size={14} color={colors.light.surfaceElevated} weight="bold" />
+            </AnimatedPressable>
+            {content.secondaryLabel && (
+              <AnimatedPressable
+                accessibilityRole="button"
+                accessibilityLabel={content.secondaryLabel}
+                disabled={!onSecondaryAction}
+                onPress={onSecondaryAction}
+                onPressIn={handleSecondaryPressIn}
+                onPressOut={handleSecondaryPressOut}
+                onFocus={() => setSecondaryFocused(true)}
+                onBlur={() => setSecondaryFocused(false)}
+                style={[
+                  styles.secondaryBtn,
+                  secondaryAnimatedStyle,
+                  secondaryFocused && styles.focusRing,
+                ]}
+              >
+                <Text variant="body" weight="medium" style={styles.secondaryBtnText}>
+                  {content.secondaryLabel}
+                </Text>
+              </AnimatedPressable>
+            )}
+          </View>
+        </View>
+        <View pointerEvents="none" style={[styles.iconTile, compact && styles.iconTileCompact]}>
+          {content.icon}
+        </View>
       </View>
     </View>
   );
@@ -198,71 +257,102 @@ export const AdaptiveHomeHero: React.FC<AdaptiveHomeHeroProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: radii.xl ?? 24,
+    backgroundColor: '#F6F6F6',
+    borderRadius: 12,
+    padding: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  containerCompact: {
     padding: spacing.lg,
-    marginHorizontal: spacing.lg,
-    marginVertical: spacing.md,
-    overflow: 'hidden',
-    position: 'relative',
   },
-  band: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: -80,
-    right: -60,
-    opacity: 0.55,
-  },
-  row: {
+  contentRow: {
     flexDirection: 'row',
-    gap: spacing.md,
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    gap: spacing.lg,
   },
-  iconBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+  copyColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  greetingRule: {
+    width: 20,
+    height: 3,
+    borderRadius: radii.full,
+    backgroundColor: '#111111',
+  },
+  greeting: {
+    color: colors.light.textSecondary,
+  },
+  headline: {
+    color: colors.light.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  body: {
+    color: colors.light.textSecondary,
+    maxWidth: 540,
+  },
+  iconTile: {
+    width: 72,
+    height: 72,
+    borderRadius: radii.md,
+    backgroundColor: '#EAEAEA',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  greeting: {
-    color: 'rgba(255,255,255,0.92)',
-    marginBottom: 2,
-  },
-  headline: {
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  body: {
-    color: 'rgba(255,255,255,0.95)',
-    lineHeight: 20,
+  iconTileCompact: {
+    width: 52,
+    height: 52,
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    flexWrap: 'wrap',
+    gap: spacing.lg,
+    marginTop: spacing.lg,
   },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: 999,
+    justifyContent: 'center',
+    gap: spacing.xs,
+    minHeight: 48,
+    backgroundColor: colors.light.textPrimary,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.sm,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer' as const,
+      transition: 'opacity 150ms ease-out',
+    }),
   },
-  primaryBtnText: { color: colors.light.textPrimary },
+  primaryBtnText: { color: colors.light.surfaceElevated },
   secondaryBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer' as const,
+      transition: 'opacity 150ms ease-out',
+    }),
   },
-  secondaryBtnText: { color: '#FFFFFF' },
+  secondaryBtnText: {
+    color: colors.light.textPrimary,
+    textDecorationColor: colors.light.borderStrong,
+    textDecorationLine: 'underline',
+  },
+  focusRing: {
+    ...(Platform.OS === 'web' && {
+      outlineColor: '#111111',
+      outlineOffset: 3,
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+    }),
+  },
 });
 
 export default AdaptiveHomeHero;

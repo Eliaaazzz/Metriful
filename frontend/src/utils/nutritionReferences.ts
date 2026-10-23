@@ -61,7 +61,7 @@ export const NUTRITION_REFERENCES: Record<NutritionReference['id'], NutritionRef
     title: 'Harvard Health glycemic index and glycemic load guide',
     shortLabel: 'Harvard Health glycemic load guide',
     summary:
-      'Used for the app’s simplified blood sugar impact explanation and glycemic load reference.',
+      'Used for the app’s simplified estimated glycemic impact explanation and glycemic load reference.',
     url: 'https://www.health.harvard.edu/diseases-and-conditions/glycemic-index-and-glycemic-load-for-100-foods',
     domainLabel: 'health.harvard.edu',
   },

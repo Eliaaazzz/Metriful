@@ -1,24 +1,57 @@
 /**
- * Meal History Screen
- * Displays paginated list of user's meal logs with date filtering
+ * Meal History Screen — the visual Diary.
+ *
+ * SnapCalorie-style photo timeline of everything logged, upgraded with:
+ * meal-type + favorites filter chips, food-name search, day grouping with daily
+ * totals, one-tap favorite (star), and one-tap repeat (Uber Eats "order again").
  */
 
-import { ArrowLeft, CaretRight, Coffee, Cookie, Fire, ForkKnife, Orange, WarningCircle } from 'phosphor-react-native';
+import { ArrowLeft, ArrowsClockwise, CaretRight, Coffee, Cookie, Fire, ForkKnife, Heart, Orange, WarningCircle } from 'phosphor-react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import React, { useCallback, useState } from 'react';
+import * as Haptics from 'expo-haptics';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
     Pressable,
     RefreshControl,
     StyleSheet,
+    TextInput,
     View,
 } from 'react-native';
 import { Card, SafeAreaWrapper, Text } from '@/components';
 import { MealImage } from '@/components/nutrition/MealImage';
-import { useMealHistory } from '@/hooks/useMealHistory';
+import { useMealHistory, useReLogMeal } from '@/hooks/useMealHistory';
+import { useMealFavoritesStore } from '@/stores/useMealFavoritesStore';
 import type { MealHistoryItem } from '@/types/mealHistory';
 import { BRAND_COLORS, spacing } from '@/utils';
+
+type DiaryFilter = 'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'favorites';
+
+const FILTERS: Array<{ id: DiaryFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'breakfast', label: 'Breakfast' },
+  { id: 'lunch', label: 'Lunch' },
+  { id: 'dinner', label: 'Dinner' },
+  { id: 'snack', label: 'Snacks' },
+  { id: 'favorites', label: '♥ Favorites' },
+];
+
+type DiaryRow =
+  | { kind: 'header'; key: string; label: string; totalKcal: number }
+  | { kind: 'meal'; key: string; meal: MealHistoryItem };
+
+const dayLabel = (isoString: string): string => {
+  const date = new Date(isoString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(date, today)) return 'Today';
+  if (sameDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+};
 
 // Simple date formatting helper (avoiding date-fns dependency)
 const formatDate = (isoString: string) => {
@@ -41,6 +74,8 @@ const formatTime = (isoString: string) => {
 export const MealHistoryScreen = () => {
   const navigation = useNavigation();
   const [page, setPage] = useState(0);
+  const [filter, setFilter] = useState<DiaryFilter>('all');
+  const [search, setSearch] = useState('');
   const pageSize = 20;
 
   const { data, isLoading, error, refetch, isFetching } = useMealHistory({
@@ -48,6 +83,60 @@ export const MealHistoryScreen = () => {
     size: pageSize,
     sort: 'consumedAt,desc', // Most recent first
   });
+  const reLog = useReLogMeal();
+  const [reLogInFlightId, setReLogInFlightId] = useState<number | null>(null);
+  const { isFavorite, toggleFavorite } = useMealFavoritesStore();
+
+  const handleRepeat = useCallback(
+    async (meal: MealHistoryItem) => {
+      if (reLogInFlightId != null) return;
+      setReLogInFlightId(meal.id);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      try {
+        await reLog.mutateAsync(meal);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } catch {
+        // Mutation error surfaces via query state; keep the diary calm.
+      } finally {
+        setReLogInFlightId(null);
+      }
+    },
+    [reLog, reLogInFlightId]
+  );
+
+  // Client-side filter + search over the loaded pages, then group by day with daily totals.
+  const rows = useMemo<DiaryRow[]>(() => {
+    const meals = (data?.content || []).filter((meal) => {
+      if (filter === 'favorites' && !isFavorite(meal.id)) return false;
+      if (filter !== 'all' && filter !== 'favorites' && meal.mealType.toLowerCase() !== filter) return false;
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        const haystack = [meal.mealType, meal.notes ?? '', ...(meal.foodItems?.map((f) => f.displayName) ?? [])]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const out: DiaryRow[] = [];
+    let currentDay = '';
+    let headerIndex = -1;
+    meals.forEach((meal) => {
+      const label = dayLabel(meal.consumedAt);
+      if (label !== currentDay) {
+        currentDay = label;
+        headerIndex = out.length;
+        out.push({ kind: 'header', key: `header-${label}-${meal.id}`, label, totalKcal: 0 });
+      }
+      const header = out[headerIndex];
+      if (header.kind === 'header') {
+        header.totalKcal += meal.totalCalories || 0;
+      }
+      out.push({ kind: 'meal', key: `meal-${meal.id}`, meal });
+    });
+    return out;
+  }, [data?.content, filter, search, isFavorite]);
 
   // Refetch data when screen comes into focus (for real-time sync after meal snap)
   // Note: We only reset to page 0 on initial focus, not during scrolling
@@ -103,15 +192,48 @@ export const MealHistoryScreen = () => {
       (navigation as any).navigate('ReviewMeal', { meal: item });
     };
 
+    const favorite = isFavorite(item.id);
+    const repeating = reLogInFlightId === item.id;
+
     return (
       <Pressable onPress={handleViewDetails}>
         <Card style={styles.mealCard}>
-          {/* Date & Time Header Row */}
+          {/* Date & Time Header Row + quick actions */}
           <View style={styles.cardHeaderRow}>
             <Text variant="caption" style={styles.dateTimeText}>
               {dateStr} • {timeStr}
             </Text>
-            <CaretRight size={20} color={BRAND_COLORS.textSecondary} />
+            <View style={styles.cardActions}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  toggleFavorite(item);
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={favorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Heart
+                  size={20}
+                  color={favorite ? BRAND_COLORS.primary : BRAND_COLORS.textSecondary}
+                  weight={favorite ? 'fill' : 'regular'}
+                />
+              </Pressable>
+              <Pressable
+                onPress={() => handleRepeat(item)}
+                disabled={repeating}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Log this meal again now"
+              >
+                {repeating ? (
+                  <ActivityIndicator size="small" color={BRAND_COLORS.primary} />
+                ) : (
+                  <ArrowsClockwise size={20} color={BRAND_COLORS.textSecondary} />
+                )}
+              </Pressable>
+              <CaretRight size={20} color={BRAND_COLORS.textSecondary} />
+            </View>
           </View>
 
           <View style={styles.mealCardRow}>
@@ -195,14 +317,34 @@ export const MealHistoryScreen = () => {
     );
   };
 
+  const renderRow = ({ item }: { item: DiaryRow }) => {
+    if (item.kind === 'header') {
+      return (
+        <View style={styles.dayHeader}>
+          <Text variant="heading4" weight="bold" style={styles.dayHeaderLabel}>
+            {item.label}
+          </Text>
+          <Text variant="caption" style={styles.dayHeaderTotal}>
+            {Math.round(item.totalKcal)} kcal
+          </Text>
+        </View>
+      );
+    }
+    return renderMealItem({ item: item.meal });
+  };
+
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <ForkKnife size={64} color={BRAND_COLORS.textSecondary} />
       <Text variant="body" style={styles.emptyText}>
-        No meal history yet
+        {filter !== 'all' || search.trim() ? 'Nothing matches this view' : 'No meal history yet'}
       </Text>
       <Text variant="caption" style={styles.emptySubtext}>
-        Start logging your meals to see them here
+        {filter === 'favorites'
+          ? 'Tap the heart on any meal to keep it here'
+          : filter !== 'all' || search.trim()
+            ? 'Try a different filter or search'
+            : 'Start logging your meals to see them here'}
       </Text>
     </View>
   );
@@ -253,7 +395,7 @@ export const MealHistoryScreen = () => {
             </Pressable>
             <View style={styles.headerTextContainer}>
               <Text variant="heading2" weight="bold">
-                Meal History
+                Diary
               </Text>
               {data && (
                 <Text variant="caption" style={styles.totalCount}>
@@ -262,13 +404,48 @@ export const MealHistoryScreen = () => {
               )}
             </View>
           </View>
+
+          {/* Search over food names, meal types and notes */}
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search foods you’ve eaten…"
+            placeholderTextColor={BRAND_COLORS.textMuted}
+            style={styles.searchInput}
+            accessibilityLabel="Search meal history"
+            returnKeyType="search"
+          />
+
+          {/* Meal-type + favorites filter chips */}
+          <View style={styles.filterRow}>
+            {FILTERS.map(({ id, label }) => {
+              const selected = filter === id;
+              return (
+                <Pressable
+                  key={id}
+                  onPress={() => setFilter(id)}
+                  style={[styles.filterChip, selected && styles.filterChipSelected]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Filter: ${label}`}
+                >
+                  <Text
+                    variant="caption"
+                    weight="semibold"
+                    style={selected ? styles.filterChipTextSelected : styles.filterChipText}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
-        {/* List */}
+        {/* Timeline list grouped by day */}
         <FlatList
-          data={data?.content || []}
-          renderItem={renderMealItem}
-          keyExtractor={(item) => String(item.id)}
+          data={rows}
+          renderItem={renderRow}
+          keyExtractor={(item) => item.key}
           ListEmptyComponent={isLoading ? null : renderEmpty}
           ListFooterComponent={renderFooter}
           contentContainerStyle={styles.listContent}
@@ -312,6 +489,61 @@ const styles = StyleSheet.create({
   totalCount: {
     color: BRAND_COLORS.textSecondary,
     marginTop: spacing.xs,
+  },
+  searchInput: {
+    marginTop: spacing.md,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BRAND_COLORS.border,
+    backgroundColor: BRAND_COLORS.surfaceElevated,
+    paddingHorizontal: spacing.md,
+    color: BRAND_COLORS.textPrimary,
+    fontSize: 15,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  filterChip: {
+    minHeight: 34,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    backgroundColor: BRAND_COLORS.surface,
+    borderWidth: 1,
+    borderColor: BRAND_COLORS.border,
+  },
+  filterChipSelected: {
+    backgroundColor: BRAND_COLORS.primaryTint,
+    borderColor: BRAND_COLORS.primary,
+  },
+  filterChipText: {
+    color: BRAND_COLORS.textSecondary,
+  },
+  filterChipTextSelected: {
+    color: BRAND_COLORS.primaryDark,
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xs,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  dayHeaderLabel: {
+    color: BRAND_COLORS.textPrimary,
+  },
+  dayHeaderTotal: {
+    color: BRAND_COLORS.textMuted,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
   },
   listContent: {
     padding: spacing.md,

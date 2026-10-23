@@ -98,7 +98,9 @@ export const useReLogMeal = (userId: string = 'me') => {
     onSuccess: () => {
       // Invalidate today's nutrition + meal history so the new entry appears immediately.
       queryClient.invalidateQueries({ queryKey: ['meal-history'] });
+      // Both spellings exist in the codebase; useDailyNutrition listens on 'dailyNutrition'.
       queryClient.invalidateQueries({ queryKey: ['daily-nutrition'] });
+      queryClient.invalidateQueries({ queryKey: ['dailyNutrition'] });
       queryClient.invalidateQueries({ queryKey: ['weekly-insights'] });
     },
   });

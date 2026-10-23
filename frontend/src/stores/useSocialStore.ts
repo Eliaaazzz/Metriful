@@ -59,7 +59,7 @@ const mockFeed: ActivityFeedItem[] = [
     userId: 'u_jane',
     username: 'jane_runs',
     kind: 'workout_done',
-    title: 'Jane finished a 28-min cardio session',
+    title: 'Jane finished a 30-min cardio session',
     subtitle: '320 kcal · HIIT',
     createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
     kudosCount: 4,

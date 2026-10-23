@@ -4,11 +4,12 @@ import {
   useChallengeStore,
   type ChallengeTemplate,
 } from '@/stores/useChallengeStore';
-import { colors, radii, spacing } from '@/utils';
+import { badgeArtFor, colors, radii, spacing } from '@/utils';
+import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { Lightning, Plus, Trophy } from 'phosphor-react-native';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 interface ChallengesCardProps {
   /** Max active+available to render. */
@@ -39,7 +40,7 @@ export const ChallengesCard: React.FC<ChallengesCardProps> = ({ limit }) => {
       <View style={styles.header}>
         <View style={styles.titleGroup}>
           <View style={styles.iconBubble}>
-            <Trophy size={16} color="#F59E0B" weight="fill" />
+            <Trophy size={16} color="#111111" weight="fill" />
           </View>
           <View>
             <Text variant="body" weight="bold" style={styles.title}>Challenges</Text>
@@ -49,7 +50,7 @@ export const ChallengesCard: React.FC<ChallengesCardProps> = ({ limit }) => {
           </View>
         </View>
         <View style={styles.xpPill}>
-          <Lightning size={12} color="#F59E0B" weight="fill" />
+          <Lightning size={12} color="#111111" weight="fill" />
           <Text variant="caption" weight="bold" style={styles.xpText}>{totalXp} XP</Text>
         </View>
       </View>
@@ -64,7 +65,11 @@ export const ChallengesCard: React.FC<ChallengesCardProps> = ({ limit }) => {
             return (
               <View key={ch.templateId} style={styles.activeCard}>
                 <View style={styles.activeHeader}>
-                  <Text style={{ fontSize: 18 }}>{tpl.emoji}</Text>
+                  {badgeArtFor(tpl.emoji) ? (
+                    <Image source={badgeArtFor(tpl.emoji)} style={styles.activeIcon as any} contentFit="contain" />
+                  ) : (
+                    <Text style={{ fontSize: 18 }}>{tpl.emoji}</Text>
+                  )}
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text variant="caption" weight="bold" numberOfLines={1} style={styles.activeTitle}>
                       {tpl.title}
@@ -98,10 +103,14 @@ export const ChallengesCard: React.FC<ChallengesCardProps> = ({ limit }) => {
 
       {/* Available challenges */}
       {availSlice.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.availList}>
+        <View style={styles.availList}>
           {availSlice.map((tpl: ChallengeTemplate) => (
             <View key={tpl.id} style={styles.availCard}>
-              <Text style={{ fontSize: 22 }}>{tpl.emoji}</Text>
+              {badgeArtFor(tpl.emoji) ? (
+                <Image source={badgeArtFor(tpl.emoji)} style={styles.availIcon as any} contentFit="contain" />
+              ) : (
+                <Text style={{ fontSize: 22 }}>{tpl.emoji}</Text>
+              )}
               <Text variant="caption" weight="bold" style={styles.availTitle} numberOfLines={1}>{tpl.title}</Text>
               <Text variant="caption" style={styles.availDesc} numberOfLines={2}>{tpl.description}</Text>
               <View style={styles.availFooter}>
@@ -120,7 +129,7 @@ export const ChallengesCard: React.FC<ChallengesCardProps> = ({ limit }) => {
               </View>
             </View>
           ))}
-        </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -140,7 +149,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(245,158,11,0.16)',
+    backgroundColor: '#F3F3F3',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -150,22 +159,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF6E0',
+    backgroundColor: '#EAEAEA',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
   },
-  xpText: { color: '#92400E' },
+  xpText: { color: '#111111' },
   activeList: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
     gap: spacing.sm,
   },
   activeCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(17,17,17,0.06)',
+    backgroundColor: '#F6F6F6',
+    borderRadius: 12,
     padding: spacing.md,
     gap: spacing.sm,
   },
@@ -185,19 +192,27 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.light.primary,
+    backgroundColor: '#111111',
   },
-  progressFillDone: { backgroundColor: '#10B981' },
+  progressFillDone: { backgroundColor: '#111111' },
   availList: {
+    flexDirection: 'row',
     paddingHorizontal: spacing.lg,
     gap: spacing.sm,
   },
+  activeIcon: {
+    width: 36,
+    height: 36,
+  },
+  availIcon: {
+    width: 56,
+    height: 56,
+  },
   availCard: {
-    width: 200,
-    backgroundColor: '#FFFFFF',
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(17,17,17,0.06)',
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: '#F6F6F6',
+    borderRadius: 12,
     padding: spacing.md,
     gap: 4,
   },
@@ -209,7 +224,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  availReward: { color: '#92400E' },
+  availReward: { color: '#111111' },
   joinBtn: {
     flexDirection: 'row',
     alignItems: 'center',

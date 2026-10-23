@@ -11,7 +11,7 @@
     "type-check": "tsc --noEmit",
     "lint": "echo 'Linting not configured yet' && exit 0",
     "build": "npx expo export --platform web && npm run postbuild",
-    "postbuild": "cp -r public/* dist/ 2>/dev/null || true"
+    "postbuild": "node scripts/prerender-landing.mjs dist/index.html"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -53,6 +53,7 @@
     "react-native-svg": "^15.15.1",
     "react-native-vision-camera": "^4.7.3",
     "react-native-web": "^0.21.0",
+    "react-native-web-webview": "^1.0.2",
     "react-native-webview": "13.15.0",
     "react-native-worklets": "^0.7.2",
     "react-native-worklets-core": "^1.6.2",

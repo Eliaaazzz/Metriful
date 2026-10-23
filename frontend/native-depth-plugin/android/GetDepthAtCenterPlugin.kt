@@ -53,8 +53,8 @@ class GetDepthAtCenterPlugin(
       "fx" to fx,
       "width" to width,
       "height" to height,
-      // High measured confidence => treat as a calibrated/absolute reading.
-      "accuracy" to if (sample.confidence >= 0.66f) "absolute" else "relative"
+      // Confidence describes this sample; absolute calibration requires device validation.
+      "accuracy" to "relative"
     )
   }
 
@@ -63,9 +63,8 @@ class GetDepthAtCenterPlugin(
   /**
    * DEPTH16: each 16-bit sample packs depth in the low 13 bits (millimeters) and a
    * confidence code in the high 3 bits. Per the Android format spec the code maps to a
-   * percentage as: 0 => 100% confident, otherwise (code - 1) / 7. We return the median
-   * depth and the mean confidence over the valid samples in the centre window — so the
-   * JS-side minConfidence filter is actually meaningful instead of a no-op 0.9.
+   * percentage as: 0 => 100% confident, otherwise (code - 1) / 7. Keep each depth
+   * paired with its confidence so reliable neighbours cannot validate a bad median.
    */
   private fun readCenterDepth(image: Image): DepthSample? {
     val plane = image.planes.firstOrNull() ?: return null
@@ -80,8 +79,7 @@ class GetDepthAtCenterPlugin(
     val cy = h / 2
     val radius = maxOf(1, minOf(w, h) / 64)
 
-    val depths = ArrayList<Float>()
-    var confidenceSum = 0f
+    val depths = ArrayList<DepthSample>()
     var y = maxOf(0, cy - radius)
     while (y <= minOf(h - 1, cy + radius)) {
       var x = maxOf(0, cx - radius)
@@ -92,8 +90,8 @@ class GetDepthAtCenterPlugin(
           val millimeters = raw and 0x1FFF       // low 13 bits
           val code = (raw shr 13) and 0x7         // high 3 bits = confidence code
           if (millimeters > 0) {
-            depths.add(millimeters / 1000f)
-            confidenceSum += if (code == 0) 1f else (code - 1) / 7f
+            val confidence = if (code == 0) 1f else (code - 1) / 7f
+            depths.add(DepthSample(millimeters / 1000f, confidence))
           }
         }
         x++
@@ -101,8 +99,8 @@ class GetDepthAtCenterPlugin(
       y++
     }
     if (depths.isEmpty()) return null
-    depths.sort()
-    return DepthSample(depths[depths.size / 2], confidenceSum / depths.size)
+    depths.sortBy { it.meters }
+    return depths[depths.size / 2]
   }
 }
 

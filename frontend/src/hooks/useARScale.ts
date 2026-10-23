@@ -56,30 +56,46 @@ export function useARScale(enabled = true): UseARScale {
   const [supported, setSupported] = useState(false);
   const [imgWcm, setImgWcm] = useState<number | null>(null);
   const started = useRef(false);
+  const active = useRef(enabled);
+  const commands = useRef<Promise<void>>(Promise.resolve());
+
+  const stopSession = useCallback(() => {
+    commands.current = commands.current.then(async () => {
+      if (!started.current) return;
+      try { await Native?.stop(); } catch { /* release is best effort */ }
+      started.current = false;
+    });
+    return commands.current;
+  }, []);
 
   useEffect(() => {
     let alive = true;
+    active.current = enabled;
+    if (!enabled) {
+      setSupported(false);
+      setImgWcm(null);
+    }
     if (enabled && Native?.isSupported) {
       Native.isSupported().then((s) => { if (alive) setSupported(!!s); }).catch(() => {});
     }
     return () => {
       alive = false;
-      if (started.current) {
-        Native?.stop().catch(() => {});
-        started.current = false; // keep the start-guard in sync so a later start() can restart
-      }
+      active.current = false;
+      // Queue release after any pending start so unmount cannot leak the camera.
+      void stopSession();
     };
-  }, [enabled]);
+  }, [enabled, stopSession]);
 
   const start = useCallback(async () => {
-    if (!Native || started.current) return;
-    try { await Native.start(); started.current = true; } catch { /* fall back to plate scale */ }
+    if (!Native || !active.current) return;
+    commands.current = commands.current.then(async () => {
+      if (!active.current || started.current) return;
+      try { started.current = !!(await Native.start()); } catch { /* fall back to plate scale */ }
+    });
+    await commands.current;
   }, []);
 
-  const stop = useCallback(async () => {
-    if (!Native || !started.current) return;
-    try { await Native.stop(); } finally { started.current = false; }
-  }, []);
+  const stop = stopSession;
 
   const measure = useCallback(async (): Promise<number | null> => {
     if (!Native) return null;
@@ -93,9 +109,10 @@ export function useARScale(enabled = true): UseARScale {
         finite !== null && finite >= MIN_PLAUSIBLE_IMG_W_CM && finite <= MAX_PLAUSIBLE_IMG_W_CM
           ? finite
           : null;
-      if (v !== null) setImgWcm(v);
+      setImgWcm(v);
       return v;
     } catch {
+      setImgWcm(null);
       return null;
     }
   }, []);

@@ -132,4 +132,44 @@ describe('useARScale (native ARScaleModule present)', () => {
     await act(async () => { await result.current.stop(); });
     expect(stop).toHaveBeenCalledTimes(1);
   });
+
+  it('releases a session whose startup resolves after unmount', async () => {
+    let finishStart!: (value: boolean) => void;
+    start.mockImplementationOnce(() => new Promise<boolean>((resolve) => { finishStart = resolve; }));
+    const { result, unmount } = renderHook(() => useARScale());
+    const pendingStart = result.current.start();
+    await act(async () => { await Promise.resolve(); });
+    unmount();
+    await act(async () => {
+      finishStart(true);
+      await pendingStart;
+      await Promise.resolve();
+    });
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows retry when native startup reports false', async () => {
+    start.mockResolvedValueOnce(false);
+    const { result } = renderHook(() => useARScale());
+    await act(async () => { await result.current.start(); });
+    await act(async () => { await result.current.start(); });
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not start while disabled', async () => {
+    const { result } = renderHook(() => useARScale(false));
+    await act(async () => { await result.current.start(); });
+    expect(start).not.toHaveBeenCalled();
+    expect(result.current.supported).toBe(false);
+  });
+
+  it('clears a previous scale when tracking loses the plane', async () => {
+    measure.mockResolvedValueOnce({ hasScale: true, imgWcm: 32 });
+    const { result } = renderHook(() => useARScale());
+    await act(async () => { await result.current.measure(); });
+    expect(result.current.imgWcm).toBe(32);
+    measure.mockResolvedValueOnce({ hasScale: false });
+    await act(async () => { await result.current.measure(); });
+    expect(result.current.imgWcm).toBeNull();
+  });
 });

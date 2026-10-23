@@ -61,9 +61,15 @@ r2:
   public-url: https://example.invalid
 
 usda:
-  api:
-    key: ""
-    base-url: https://api.nal.usda.gov/fdc/v1
+  enabled: true
+  api-key: ""
+  base-url: https://api.nal.usda.gov/fdc
+  cache:
+    l1:
+      maximum-size: 2000
+      expire-after-write: 12h
+    l2:
+      ttl: 7d
 
 management:
   health:

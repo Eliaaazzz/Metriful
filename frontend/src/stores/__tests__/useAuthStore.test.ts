@@ -159,13 +159,20 @@ describe('useAuthStore', () => {
       expect(mockSaveJWT).toHaveBeenCalledWith(MOCK_TOKEN, undefined, MOCK_USER_INFO.email);
     });
 
-    it('should not persist partial userInfo placeholders', async () => {
+    it('falls back to the provided userInfo when the canonical /me fetch fails', async () => {
+      // Partial userInfo (empty userId/username) triggers a canonical /me fetch, which
+      // fails here because jest's node VM can't run the store's dynamic import() — the same
+      // path a serverless cold start hits on device. Per the iPad cold-start login fix
+      // (commit a067baf), signIn must still authenticate AND keep the provided userInfo so
+      // the UI can show the user's name/email; useCurrentUser refetches canonical data on
+      // the main screen. (This test predated that fix and was never run because the suite
+      // couldn't load without the jest-expo preset.)
       await useAuthStore.getState().signIn(MOCK_TOKEN, MOCK_PARTIAL_USER_INFO);
 
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(true);
-      expect(state.userInfo).toBeNull();
-      expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+      expect(state.userInfo).toEqual(MOCK_PARTIAL_USER_INFO);
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith(
         'aura_user_info',
         JSON.stringify(MOCK_PARTIAL_USER_INFO)
       );

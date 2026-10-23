@@ -39,12 +39,13 @@ export const WeeklySummaryCard: React.FC<WeeklySummaryCardProps> = ({
     if (!stats) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     const prefix = userName ? `${userName}'s week` : 'My week';
+    // Privacy-safe by default: consistency + achievements only — no calorie numbers
+    // leave the app unless the user chooses to share them from a meal's own share sheet.
     const message = [
-      `${prefix} on AuraFitness:`,
+      `${prefix} on Metriful:`,
       `• ${stats.totalMeals} meals logged`,
       `• ${stats.onTarget}/7 days on-target`,
       `• Protein PR: ${stats.bestProtein}g`,
-      `• Daily avg: ${stats.avgCals} kcal`,
     ].join('\n');
     try {
       await RNShare.share({ message });
@@ -67,7 +68,7 @@ export const WeeklySummaryCard: React.FC<WeeklySummaryCardProps> = ({
       <View style={styles.header}>
         <View style={styles.titleGroup}>
           <View style={styles.iconBubble}>
-            <Confetti size={16} color="#A78BFA" weight="fill" />
+            <Confetti size={16} color="#111111" weight="fill" />
           </View>
           <View>
             <Text variant="body" weight="bold" style={styles.title}>This week in review</Text>
@@ -115,11 +116,9 @@ const styles = StyleSheet.create({
   container: {
     marginVertical: spacing.md,
     marginHorizontal: spacing.lg,
-    backgroundColor: '#FFFFFF',
-    borderRadius: radii.xl ?? 24,
+    backgroundColor: '#F6F6F6',
+    borderRadius: 12,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(17,17,17,0.06)',
     gap: spacing.md,
   },
   header: {
@@ -132,7 +131,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(167,139,250,0.16)',
+    backgroundColor: '#EAEAEA',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -156,8 +155,8 @@ const styles = StyleSheet.create({
   cell: {
     flexBasis: '47%',
     flexGrow: 1,
-    backgroundColor: 'rgba(17,17,17,0.04)',
-    borderRadius: radii.lg,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     padding: spacing.md,
   },
   cellValue: { color: colors.light.textPrimary },

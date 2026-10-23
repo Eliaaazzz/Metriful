@@ -67,3 +67,16 @@ jobs:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
           image: gcr.io/${{ env.PROJECT_ID }}/aurafitness-backend:${{ github.sha }}
+          # Scale for concurrent AI-vision load. Each /nutrition/analyze request is heavy:
+          # AWT image decode/resize + two hedged Gemini calls (~8s wall). Default 512Mi / conc=80
+          # OOM-killed the instance under load (observed: ~8 ok, then a 503 cascade). Strategy:
+          # real memory headroom, few heavy requests per instance, and scale OUT, with one warm
+          # instance + startup CPU boost to eliminate cold-start 503s.
+          flags: >-
+            --memory=2Gi
+            --cpu=2
+            --concurrency=8
+            --min-instances=1
+            --max-instances=30
+            --timeout=120
+            --cpu-boost
