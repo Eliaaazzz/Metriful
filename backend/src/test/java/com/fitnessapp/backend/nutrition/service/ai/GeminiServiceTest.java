@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
@@ -23,13 +22,14 @@ import com.fitnessapp.backend.nutrition.dto.FoodRecognitionResult;
 import com.fitnessapp.backend.nutrition.exception.FoodRecognitionException;
 
 /**
- * Unit tests for GeminiMealAnalysisService
+ * Unit tests for GeminiMealAnalysisService.
  *
- * Tests the AI-native meal analysis using Gemini.
+ * Tests the AI-native meal analysis using Gemini. Capture-quality / EXIF-orientation /
+ * structured-output behaviour lives in {@link GeminiCaptureQualityTest}.
  */
 class GeminiServiceTest {
 
-    private static final String DEFAULT_MODEL = "gemini-2.0-flash";
+    private static final String DEFAULT_MODEL = "gemini-2.5-flash";
     private static final String TEST_PROJECT_ID = "test-project";
     private static final String TEST_REGION = "australia-southeast2";
 
@@ -75,30 +75,38 @@ class GeminiServiceTest {
     }
 
     @Test
-    void testCompressImageBypassesHeicOptimization() throws Exception {
+    void testOptimizeImageBypassesHeicOptimization() {
         GeminiMealAnalysisService service = newService("test-api-key");
         String base64Image = Base64.getEncoder().encodeToString("fake-heic".getBytes());
 
-        String optimized = invokeCompressImage(service, base64Image, "image/heic");
+        // HEIC isn't decodable by ImageIO; the service must forward the original bytes untouched.
+        var optimized = service.optimizeImage(base64Image, "image/heic");
 
-        assertThat(optimized).isEqualTo(base64Image);
+        assertThat(optimized.base64()).isEqualTo(base64Image);
+        assertThat(optimized.mediaType()).isEqualTo("image/heic");
+        assertThat(optimized.quality()).isNull();
     }
 
     @Test
-    void testCompressImageConvertsLargePngToJpeg() throws Exception {
+    void testOptimizeImageConvertsLargePngToJpeg() throws Exception {
         GeminiMealAnalysisService service = newService("test-api-key");
         BufferedImage image = new BufferedImage(2000, 1200, BufferedImage.TYPE_INT_RGB);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         ImageIO.write(image, "png", output);
         String base64Image = Base64.getEncoder().encodeToString(output.toByteArray());
 
-        String optimized = invokeCompressImage(service, base64Image, "image/png");
-        byte[] optimizedBytes = Base64.getDecoder().decode(optimized);
+        var optimized = service.optimizeImage(base64Image, "image/png");
+        byte[] optimizedBytes = Base64.getDecoder().decode(optimized.base64());
 
-        assertThat(optimized).isNotEqualTo(base64Image);
+        assertThat(optimized.base64()).isNotEqualTo(base64Image);
+        assertThat(optimized.mediaType()).isEqualTo("image/jpeg");
         assertThat(optimizedBytes)
                 .hasSizeGreaterThan(3)
                 .startsWith((byte) 0xFF, (byte) 0xD8, (byte) 0xFF);
+        // Downscaled to <=1024 on the long edge while keeping aspect ratio.
+        BufferedImage decoded = ImageIO.read(new java.io.ByteArrayInputStream(optimizedBytes));
+        assertThat(decoded.getWidth()).isEqualTo(1024);
+        assertThat(decoded.getHeight()).isEqualTo(614);
     }
 
     @Test
@@ -117,14 +125,6 @@ class GeminiServiceTest {
                 .isEqualTo("image/jpeg");
         assertThat(GeminiMealAnalysisService.inferContentTypeFromFilename("unknown.bin"))
                 .isNull();
-    }
-
-    private String invokeCompressImage(GeminiMealAnalysisService service, String base64Image, String mediaType)
-            throws Exception {
-        Method compressImage = GeminiMealAnalysisService.class
-                .getDeclaredMethod("compressImage", String.class, String.class);
-        compressImage.setAccessible(true);
-        return (String) compressImage.invoke(service, base64Image, mediaType);
     }
 
     /**
@@ -163,12 +163,16 @@ class GeminiServiceTest {
     }
 
     private GeminiMealAnalysisService newService(String apiKey) {
+        // 7th arg: structured-output enabled (matches production default).
+        // 8th arg: thinking-budget 0 = reasoning disabled (fast interactive path).
         return new GeminiMealAnalysisService(
                 objectMapper,
                 apiKey,
                 "",
                 false,
                 TEST_PROJECT_ID,
-                TEST_REGION);
+                TEST_REGION,
+                true,
+                0);
     }
 }

@@ -24,39 +24,41 @@ import SquadCard from '@/components/squads/SquadCard';
 import SquadCreateModal from '@/components/squads/SquadCreateModal';
 import { Text } from '@/components/Text';
 import { squadsApi } from '@/services/squadsApi';
+import { useAuthStore } from '@/stores/useAuthStore';
 import type { Squad } from '@/types/squads';
 import { BRAND_COLORS, spacing } from '@/utils';
 
-const QUERY_KEY = ['squads', 'list'] as const;
-
 export function SquadsScreen() {
+  const userId = useAuthStore((s) => s.userInfo?.userId);
+  const queryKey = ['squads', userId, 'list'] as const;
   const navigation = useNavigation<StackNavigationProp<any>>();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
 
   const { data, isLoading, isRefetching, refetch, error } = useQuery({
-    queryKey: QUERY_KEY,
+    queryKey,
     queryFn: squadsApi.list,
+    enabled: !!userId,
     staleTime: 30_000,
   });
 
   const onSquadCreated = useCallback(
     (squad: Squad) => {
       setCreateOpen(false);
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey });
       navigation.navigate('SquadDetail', { squadId: squad.id });
     },
-    [navigation, queryClient],
+    [navigation, queryClient, userId],
   );
 
   const onSquadJoined = useCallback(
     (squad: Squad) => {
       setJoinOpen(false);
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey });
       navigation.navigate('SquadDetail', { squadId: squad.id });
     },
-    [navigation, queryClient],
+    [navigation, queryClient, userId],
   );
 
   const onCardPress = useCallback(
@@ -66,6 +68,8 @@ export function SquadsScreen() {
 
   const squads = data ?? [];
   const showEmpty = !isLoading && squads.length === 0;
+
+  if (!userId) return null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

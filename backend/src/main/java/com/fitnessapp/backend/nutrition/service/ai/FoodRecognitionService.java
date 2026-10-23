@@ -18,6 +18,7 @@ import com.fitnessapp.backend.nutrition.dto.FoodRecognitionRequestMetadata;
 import com.fitnessapp.backend.nutrition.dto.NutritionInfo;
 import com.fitnessapp.backend.nutrition.dto.RecognizedFood;
 import com.fitnessapp.backend.nutrition.exception.FoodRecognitionException;
+import com.fitnessapp.backend.nutrition.service.core.PerItemPortionRefinementService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,15 +34,18 @@ public class FoodRecognitionService {
 
     private final List<FoodRecognitionProvider> providers;
     private final Executor asyncExecutor;
+    private final PerItemPortionRefinementService physicsRefinement;
 
     public FoodRecognitionService(
             List<FoodRecognitionProvider> providers,
-            @Qualifier("foodRecognitionExecutor") Executor foodRecognitionExecutor
+            @Qualifier("foodRecognitionExecutor") Executor foodRecognitionExecutor,
+            PerItemPortionRefinementService physicsRefinement
     ) {
         this.providers = providers.stream()
                 .sorted(Comparator.comparingInt(FoodRecognitionProvider::getPriority))
                 .toList();
         this.asyncExecutor = foodRecognitionExecutor;
+        this.physicsRefinement = physicsRefinement;
 
         log.info("Initialized FoodRecognitionService with {} providers: {}",
                 providers.size(),
@@ -88,9 +92,12 @@ public class FoodRecognitionService {
 
             try {
                 FoodRecognitionResult result = provider.recognizeFoods(image, metadata);
+                // Geometric portion refinement from LiDAR depth in metadata: per-item when the
+                // client sent segmented masks + localized foods, else scene-level. No-op without depth.
+                result = physicsRefinement.refine(result, metadata);
                 long durationMs = (System.nanoTime() - providerStart) / 1_000_000;
-                log.info("✅ Provider '{}' succeeded with {} items", 
-                        provider.getProviderName(), 
+                log.info("✅ Provider '{}' succeeded with {} items",
+                        provider.getProviderName(),
                         result.getItems() != null ? result.getItems().size() : 0);
                 log.info("Provider '{}' latency={}ms (totalService={}ms)",
                         provider.getProviderName(), durationMs, (System.nanoTime() - serviceStart) / 1_000_000);

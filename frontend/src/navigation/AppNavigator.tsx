@@ -51,6 +51,7 @@ import { WeeklyInsightsScreen } from '@/screens/WeeklyInsightsScreen';
 import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
 import SquadsScreen from '@/screens/SquadsScreen';
 import SquadDetailScreen from '@/screens/SquadDetailScreen';
+import { recordInitialScreen, trackScreenView } from '@/services/analytics';
 import { BRAND_COLORS, TAB_ICON_SIZE, useResponsive, useSidebarVisible } from '@/utils';
 
 // Wrap screens with ErrorBoundary to prevent white screen crashes
@@ -607,10 +608,28 @@ const MainTabs = () => {
   );
 };
 
+// F11 — Floating workout session strip mounted at navigator root.
+const WorkoutSessionStripRoot = () => {
+  // Lazy import to keep the navigator file lean.
+  const { WorkoutSessionStrip } = require('@/components/WorkoutSessionStrip') as typeof import('@/components/WorkoutSessionStrip');
+  const { usePostWorkoutStore } = require('@/stores/usePostWorkoutStore') as typeof import('@/stores/usePostWorkoutStore');
+  const recordFinish = usePostWorkoutStore((s) => s.recordFinish);
+  // Finishing a session feeds the training→nutrition loop: the Dashboard offers a
+  // recovery-meal log for the next 2 hours (see RecoveryMealCard).
+  return <WorkoutSessionStrip bottomInset={96} onFinish={recordFinish} />;
+};
+
 export const AppNavigator = () => {
   // Always use light mode
   return (
-    <NavigationContainer ref={navigationRef} theme={LightNavigationTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={LightNavigationTheme}
+      // GA4 screen tracking: seed with the initial route (its page load is
+      // already counted by the head snippet), then log each screen change.
+      onReady={() => recordInitialScreen(navigationRef.getCurrentRoute()?.name)}
+      onStateChange={() => trackScreenView(navigationRef.getCurrentRoute()?.name)}
+    >
       <Stack.Navigator
         initialRouteName="Splash"
         screenOptions={webCompatibleStackScreenOptions}
@@ -678,6 +697,8 @@ export const AppNavigator = () => {
           options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
         />
       </Stack.Navigator>
+      {/* F11 — Floating workout session strip; renders only when a session is active. */}
+      <WorkoutSessionStripRoot />
     </NavigationContainer>
   );
 };

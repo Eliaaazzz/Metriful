@@ -10,6 +10,9 @@ import React from 'react';
 import { KudosButton } from '../KudosButton';
 import { squadsApi } from '@/services/squadsApi';
 
+jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+
 jest.mock('@/services/squadsApi', () => ({
   squadsApi: { toggleKudos: jest.fn() },
 }));

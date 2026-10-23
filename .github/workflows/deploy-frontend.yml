@@ -40,6 +40,11 @@ jobs:
       - name: Copy public assets
         run: cp -r frontend/public/* frontend/dist/ 2>/dev/null || true
 
+      # SEO/no-JS: prerender static landing content + meta tags into the SPA shell.
+      - name: Prerender landing content
+        working-directory: frontend
+        run: node scripts/prerender-landing.mjs dist/index.html
+
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

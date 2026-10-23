@@ -163,6 +163,25 @@ class FoodDensityCategoryTest {
     }
 
     @Test
+    @DisplayName("getGramsPerCm3 returns physically sensible bulk densities")
+    void gramsPerCm3AreSensible() {
+        // Every category's bulk density is in a physically plausible food range.
+        for (FoodDensityCategory c : FoodDensityCategory.values()) {
+            assertThat(c.getGramsPerCm3())
+                .as("density of %s", c)
+                .isGreaterThan(0.0)
+                .isLessThanOrEqualTo(1.1);
+        }
+        // Airy foods are far less dense than dense proteins/liquids.
+        assertThat(FoodDensityCategory.LEAFY_VEG.getGramsPerCm3())
+            .isLessThan(FoodDensityCategory.MEAT_MAIN.getGramsPerCm3());
+        assertThat(FoodDensityCategory.SNACK.getGramsPerCm3())
+            .isLessThan(FoodDensityCategory.DAIRY.getGramsPerCm3());
+        // GENERIC matches the ~0.6 g/cm³ measured median across the benchmarks.
+        assertThat(FoodDensityCategory.GENERIC.getGramsPerCm3()).isEqualTo(0.60);
+    }
+
+    @Test
     @DisplayName("Density categories should have sensible size differences")
     void densityCategoriesHaveSensibleDifferences() {
         // Fats should be much smaller than meats

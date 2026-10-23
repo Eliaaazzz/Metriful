@@ -3,12 +3,14 @@
  */
 
 import { getMealHistory, getWeeklyInsights } from '@/services/mealHistoryApi';
+import nutritionApi from '@/services/nutritionApi';
 import type {
+    MealHistoryItem,
     MealHistoryParams,
     MealHistoryResponse,
     WeeklyInsightsResponse,
 } from '@/types/mealHistory';
-import { useQuery, UseQueryResult } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, UseQueryResult } from '@tanstack/react-query';
 
 /**
  * Hook to fetch paginated meal history
@@ -70,5 +72,36 @@ export const useWeeklyInsights = (
     enabled,
     staleTime: 5 * 60 * 1000,  // 5 minutes
     gcTime: 10 * 60 * 1000,    // 10 minutes
+  });
+};
+
+/**
+ * useReLogMeal — one-tap re-log of a past meal at the current timestamp.
+ * Re-uses the nutrition log endpoint so the duplicate is a real new entry,
+ * not a cosmetic update. Pattern source: Uber Eats "Order again".
+ */
+export const useReLogMeal = (userId: string = 'me') => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (meal: MealHistoryItem) => {
+      return nutritionApi.logMeal(userId, {
+        mealType: meal.mealType,
+        consumedAt: new Date().toISOString(),
+        calories: meal.totalCalories,
+        protein: meal.totalProtein,
+        carbs: meal.totalCarbs,
+        fat: meal.totalFat,
+        notes: meal.notes,
+        imageUrl: meal.imageUrl,
+      });
+    },
+    onSuccess: () => {
+      // Invalidate today's nutrition + meal history so the new entry appears immediately.
+      queryClient.invalidateQueries({ queryKey: ['meal-history'] });
+      // Both spellings exist in the codebase; useDailyNutrition listens on 'dailyNutrition'.
+      queryClient.invalidateQueries({ queryKey: ['daily-nutrition'] });
+      queryClient.invalidateQueries({ queryKey: ['dailyNutrition'] });
+      queryClient.invalidateQueries({ queryKey: ['weekly-insights'] });
+    },
   });
 };

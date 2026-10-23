@@ -82,6 +82,8 @@ type Props = {
   onSave?: (id: string) => Promise<boolean> | boolean | void;
   onRemove?: (id: string) => Promise<boolean> | boolean | void;
   onStart?: (item: Recipe) => void;
+  /** F4 — tap-to-open hook. When supplied, RecipeCard fires this instead of route push. */
+  onOpenDetail?: (item: Recipe) => void;
   isSaved?: boolean;
   /** Image variant to use - 'thumb' for lists, 'medium' for cards */
   imageVariant?: 'thumb' | 'medium' | 'large';
@@ -94,7 +96,7 @@ type Props = {
  * Clean design, purple palette, micro-animations
  * Uses optimized images with small thumbnails for lists.
  */
-export const RecipeCard = ({ item, onSave, onRemove, onStart, isSaved, imageVariant = 'thumb', disableHoverEffect = false }: Props) => {
+export const RecipeCard = ({ item, onSave, onRemove, onStart, onOpenDetail, isSaved, imageVariant = 'thumb', disableHoverEffect = false }: Props) => {
   // Always use light mode
   const theme = getTheme('light');
   const [saving, setSaving] = useState(false);
@@ -182,6 +184,10 @@ export const RecipeCard = ({ item, onSave, onRemove, onStart, isSaved, imageVari
   };
 
   const handleCardPress = () => {
+    if (onOpenDetail) {
+      onOpenDetail(item);
+      return;
+    }
     if (onStart) {
       onStart(item);
     } else {

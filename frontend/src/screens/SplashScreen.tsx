@@ -15,6 +15,10 @@ import { Image } from 'expo-image';
 import { Text } from '@/components';
 import { useAppleCredentialCheck } from '@/hooks/useAppleCredentialCheck';
 import { startBackendWarmup } from '@/services/backendWarmup';
+import {
+  hasPendingGoogleHandoff,
+  resolveWebGoogleRedirect,
+} from '@/services/webGoogleRedirect';
 import { useAuthStore } from '@/stores';
 import { BRAND_COLORS } from '@/utils';
 
@@ -61,6 +65,40 @@ export default function SplashScreen() {
     // Show splash animation briefly for a polished transition.
     if (Platform.OS === 'web') {
       (async () => {
+        // Google web sign-in is a full-page redirect (Safari blocks popups from
+        // async handlers), so it re-boots the app here at Splash with the id_token
+        // in the URL hash. Finish the login on this loading screen — otherwise the
+        // hash handler (which lives only in LoginScreen) never runs and the user is
+        // bounced to the marketing Landing page despite a successful Google login.
+        const googleRedirect = await resolveWebGoogleRedirect();
+        if (googleRedirect.kind === 'authenticated') {
+          useAuthStore.setState({ isRestoringToken: false });
+          // New Google accounts must onboard (goals / body composition) before Main,
+          // matching the email + RegisterScreen sign-up flow.
+          navigation.reset({
+            index: 0,
+            routes: [{ name: googleRedirect.isNewUser ? 'Onboarding' : 'Main' } as any],
+          });
+          return;
+        }
+        if (googleRedirect.kind === 'failed') {
+          useAuthStore.setState({ isRestoringToken: false });
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login', params: { authError: 'google' } } as any],
+          });
+          return;
+        }
+        // 'none' | 'unsolicited' → fall through to the normal restore flow below.
+
+        // A cross-origin handoff (?auth=google) needs LoginScreen, which owns the
+        // Google auth request and starts the redirect on mount.
+        if (hasPendingGoogleHandoff()) {
+          useAuthStore.setState({ isRestoringToken: false });
+          navigation.reset({ index: 0, routes: [{ name: 'Login' } as any] });
+          return;
+        }
+
         const alreadyAuthenticated = useAuthStore.getState().isAuthenticated;
         if (!alreadyAuthenticated) {
           await restoreToken();

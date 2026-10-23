@@ -58,8 +58,10 @@ export interface DepthResult {
   distanceCm: number | null; // centimeters
   confidence: number; // 0-1
   accuracy?: 'absolute' | 'relative' | 'high' | 'medium' | 'low';
-  width?: number;
-  height?: number;
+  width?: number;  // frame width in px (matches fx)
+  height?: number; // frame height in px
+  fx?: number;     // focal length in px from camera intrinsics (for real-world scale)
+  horizontalFovDeg?: number; // horizontal field of view in degrees (fallback for scale)
   error?: string;
 }
 

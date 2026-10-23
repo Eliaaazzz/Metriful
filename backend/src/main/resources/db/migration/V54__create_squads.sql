@@ -1,5 +1,5 @@
 -- ============================================================================
--- V52: Squads — social streak groups, Kudos, leaderboard
+-- V54: Squads, social streak groups, Kudos, leaderboard
 -- ============================================================================
 -- Implements feature #220 (Squads). Adapts the Strava Clubs + Duolingo group
 -- streak retention pattern to nutrition logging:
@@ -15,11 +15,11 @@
 -- ============================================================================
 
 -- Squads
-CREATE TABLE squads (
+CREATE TABLE IF NOT EXISTS squads (
     id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     name              VARCHAR(30)  NOT NULL,
     emoji             VARCHAR(8)   NOT NULL,
-    invite_code       CHAR(6)      NOT NULL UNIQUE,
+    invite_code       VARCHAR(6)   NOT NULL UNIQUE,
     owner_user_id     UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     current_streak    INTEGER      NOT NULL DEFAULT 0,
     longest_streak    INTEGER      NOT NULL DEFAULT 0,
@@ -28,10 +28,10 @@ CREATE TABLE squads (
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_squads_owner ON squads(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_squads_owner ON squads(owner_user_id);
 
 -- Squad members (composite PK)
-CREATE TABLE squad_members (
+CREATE TABLE IF NOT EXISTS squad_members (
     squad_id    UUID         NOT NULL REFERENCES squads(id) ON DELETE CASCADE,
     user_id     UUID         NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
     role        VARCHAR(16)  NOT NULL DEFAULT 'member',  -- 'owner' | 'member'
@@ -39,16 +39,16 @@ CREATE TABLE squad_members (
     PRIMARY KEY (squad_id, user_id)
 );
 
-CREATE INDEX idx_squad_members_user ON squad_members(user_id);
-CREATE INDEX idx_squad_members_squad ON squad_members(squad_id);
+CREATE INDEX IF NOT EXISTS idx_squad_members_user ON squad_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_squad_members_squad ON squad_members(squad_id);
 
 -- Kudos on meal logs
-CREATE TABLE meal_log_kudos (
+CREATE TABLE IF NOT EXISTS meal_log_kudos (
     meal_log_id  BIGINT       NOT NULL REFERENCES meal_log(id) ON DELETE CASCADE,
     user_id      UUID         NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     PRIMARY KEY (meal_log_id, user_id)
 );
 
-CREATE INDEX idx_meal_log_kudos_meal ON meal_log_kudos(meal_log_id);
-CREATE INDEX idx_meal_log_kudos_user ON meal_log_kudos(user_id);
+CREATE INDEX IF NOT EXISTS idx_meal_log_kudos_meal ON meal_log_kudos(meal_log_id);
+CREATE INDEX IF NOT EXISTS idx_meal_log_kudos_user ON meal_log_kudos(user_id);

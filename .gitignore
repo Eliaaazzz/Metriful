@@ -130,3 +130,11 @@ current-login.png
 google-apple-current.png
 tmp-*.png
 .expo/
+
+# 本地工作笔记,不入公开仓库
+docs/项目拷打文档.md
+
+# Internal interview / recruiting prep notes — keep out of the public repo.
+docs/interview-*.md
+docs/*-interview-*.md
+docs/项目拷打文档.md

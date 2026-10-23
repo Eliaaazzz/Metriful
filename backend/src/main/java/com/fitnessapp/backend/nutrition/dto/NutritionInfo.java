@@ -11,7 +11,7 @@ import java.math.BigDecimal;
  * Nutrition information DTO
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class NutritionInfo {

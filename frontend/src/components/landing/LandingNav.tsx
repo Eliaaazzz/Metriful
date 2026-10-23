@@ -5,7 +5,7 @@ import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'reac
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '@/components';
-import { APP_NAME, EXPERIENCE_COLORS, LANDING_COLORS, motion, radii, spacing } from '@/utils';
+import { APP_NAME, LANDING_COLORS, LANDING_TYPE, motion, radii, spacing } from '@/utils';
 
 interface LandingNavProps {
   onLogin: () => void;
@@ -64,7 +64,7 @@ export function LandingNav({ onLogin, onSignup, onNavPress, onHelp, onLanguage }
               accessibilityRole="button"
               accessibilityLabel="Language and region details"
             >
-              <GlobeHemisphereWest size={18} weight="regular" color={EXPERIENCE_COLORS.ink} />
+              <GlobeHemisphereWest size={18} weight="regular" color={LANDING_COLORS.text} />
               <Text variant="body" weight="semibold" style={styles.utilityText}>
                 EN
               </Text>
@@ -78,7 +78,7 @@ export function LandingNav({ onLogin, onSignup, onNavPress, onHelp, onLanguage }
               accessibilityRole="button"
               accessibilityLabel="Open help"
             >
-              <Question size={18} weight="regular" color={EXPERIENCE_COLORS.ink} />
+              <Question size={18} weight="regular" color={LANDING_COLORS.text} />
               {!isCompact && (
                 <Text variant="body" weight="semibold" style={styles.utilityText}>
                   Help
@@ -134,16 +134,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
     borderRadius: 28,
-    backgroundColor: EXPERIENCE_COLORS.glassStrong,
+    backgroundColor: LANDING_COLORS.navBg,
     borderWidth: 1,
-    borderColor: EXPERIENCE_COLORS.stroke,
+    borderColor: LANDING_COLORS.borderSoft,
     ...(typeof document !== 'undefined'
-      ? ({ backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: '0 18px 40px rgba(26,60,109,0.12)' } as any)
+      ? ({ backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: '0 18px 40px rgba(23,21,17,0.10)' } as any)
       : {
-          shadowColor: EXPERIENCE_COLORS.shadow,
+          shadowColor: '#171511',
           shadowOffset: { width: 0, height: 16 },
           shadowRadius: 30,
-          shadowOpacity: 0.12,
+          shadowOpacity: 0.1,
           elevation: 8,
         }),
   },
@@ -157,14 +157,15 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   brand: {
-    color: EXPERIENCE_COLORS.ink,
+    color: LANDING_COLORS.text,
+    fontFamily: LANDING_TYPE.display,
     letterSpacing: -0.5,
   },
   brandCompact: {
     fontSize: 20,
   },
   brandMeta: {
-    color: EXPERIENCE_COLORS.inkSoft,
+    color: LANDING_COLORS.textMuted,
   },
   brandIcon: {
     width: 34,
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   navText: {
-    color: EXPERIENCE_COLORS.inkSoft,
+    color: LANDING_COLORS.textMuted,
   },
   actions: {
     flexDirection: 'row',
@@ -201,10 +202,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: 'rgba(255,255,255,0.56)',
     borderWidth: 1,
-    borderColor: EXPERIENCE_COLORS.stroke,
+    borderColor: LANDING_COLORS.borderSoft,
   },
   utilityText: {
-    color: EXPERIENCE_COLORS.ink,
+    color: LANDING_COLORS.text,
   },
   loginBtn: {
     minHeight: 44,
@@ -213,7 +214,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: 'rgba(255,255,255,0.58)',
     borderWidth: 1,
-    borderColor: EXPERIENCE_COLORS.stroke,
+    borderColor: LANDING_COLORS.borderSoft,
   },
   loginBtnCompact: {
     paddingHorizontal: 14,
@@ -226,10 +227,10 @@ const styles = StyleSheet.create({
     minHeight: 46,
     borderRadius: radii.pill,
     justifyContent: 'center',
-    backgroundColor: EXPERIENCE_COLORS.ink,
+    backgroundColor: LANDING_COLORS.text,
     ...(Platform.OS === 'web' ? ({ transitionDuration: `${motion.fast}ms` } as any) : {}),
     ...(typeof document !== 'undefined'
-      ? ({ boxShadow: '0 14px 26px rgba(17,17,17,0.12)' } as any)
+      ? ({ boxShadow: '0 14px 26px rgba(23,21,17,0.12)' } as any)
       : {
           shadowColor: '#111111',
           shadowOffset: { width: 0, height: 10 },

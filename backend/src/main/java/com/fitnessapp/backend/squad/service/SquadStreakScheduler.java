@@ -4,7 +4,6 @@ import com.fitnessapp.backend.squad.entity.Squad;
 import com.fitnessapp.backend.squad.repository.SquadRepository;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -20,8 +19,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>Why hourly instead of nightly? Squads have per-squad timezones, so the
  * "midnight" moment is different per squad. Iterating once per hour and only
- * acting when the local hour has rolled over to 0 lets us evaluate every squad
- * in its own zone without juggling per-zone cron triggers.
+ * processing every unevaluated completed day allows recovery after a missed run.
  */
 @Component
 @Slf4j
@@ -40,10 +38,17 @@ public class SquadStreakScheduler {
     int evaluated = 0;
     for (Squad squad : squads) {
       try {
-        if (shouldEvaluateNow(squad)) {
-          LocalDate yesterday = LocalDate.now(zoneOf(squad)).minusDays(1);
-          squadService.evaluateStreakForDay(squad.getId(), yesterday);
+        ZoneId zone = zoneOf(squad);
+        LocalDate yesterday = LocalDate.now(zone).minusDays(1);
+        LocalDate next = squad.getLastActiveDay() != null
+            ? squad.getLastActiveDay().plusDays(1)
+            : squad.getCreatedAt() != null
+                ? squad.getCreatedAt().atZoneSameInstant(zone).toLocalDate()
+                : yesterday;
+        while (!next.isAfter(yesterday)) {
+          squadService.evaluateStreakForDay(squad.getId(), next);
           evaluated++;
+          next = next.plusDays(1);
         }
       } catch (Exception e) {
         log.error("Squad {} streak evaluation failed", squad.getId(), e);
@@ -52,14 +57,6 @@ public class SquadStreakScheduler {
     if (evaluated > 0) {
       log.info("Squad streak job evaluated {} of {} squads", evaluated, squads.size());
     }
-  }
-
-  private boolean shouldEvaluateNow(Squad squad) {
-    ZoneId zone = zoneOf(squad);
-    LocalTime localTime = LocalTime.now(zone);
-    LocalDate localToday = LocalDate.now(zone);
-    if (localTime.getHour() != 0) return false;
-    return squad.getLastActiveDay() == null || squad.getLastActiveDay().isBefore(localToday);
   }
 
   private static ZoneId zoneOf(Squad squad) {

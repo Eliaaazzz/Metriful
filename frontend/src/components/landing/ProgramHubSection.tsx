@@ -3,9 +3,9 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { Text } from '@/components';
-import { BRAND_COLORS, EXPERIENCE_COLORS, LANDING_COLORS, radii, spacing } from '@/utils';
+import { LANDING_COLORS, LANDING_TYPE, radii, spacing } from '@/utils';
 
-const programIllustration = require('@/../assets/illustrations/data-trends.svg');
+const programIllustration = require('@/../assets/illustrations/healthy-habit.svg');
 
 const PROGRAMS = ['Build Muscle', 'Fat Loss', 'General Health'];
 
@@ -59,7 +59,7 @@ export function ProgramHubSection() {
         <Image
           source={programIllustration}
           style={[styles.illustration, !isDesktop && styles.illustrationMobile, isCompact && styles.illustrationCompact]}
-          contentFit="cover"
+          contentFit="contain"
         />
       </View>
     </View>
@@ -81,10 +81,11 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   title: {
-    color: EXPERIENCE_COLORS.ink,
-    fontSize: 60,
-    lineHeight: 62,
-    letterSpacing: -2.2,
+    color: LANDING_COLORS.text,
+    fontFamily: LANDING_TYPE.display,
+    fontSize: 48,
+    lineHeight: 52,
+    letterSpacing: -1.8,
     maxWidth: 600,
   },
   titleMobile: {
@@ -98,9 +99,10 @@ const styles = StyleSheet.create({
     letterSpacing: -1.1,
   },
   body: {
-    color: EXPERIENCE_COLORS.inkSoft,
-    fontSize: 20,
-    lineHeight: 32,
+    color: LANDING_COLORS.textMuted,
+    fontFamily: LANDING_TYPE.body,
+    fontSize: 17.5,
+    lineHeight: 28,
     maxWidth: 540,
   },
   bodyMobile: {
@@ -114,30 +116,29 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   programPill: {
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: LANDING_COLORS.surface,
     borderRadius: radii.pill,
     paddingHorizontal: 20,
     paddingVertical: 15,
-    opacity: 0.88,
     borderWidth: 1,
-    borderColor: EXPERIENCE_COLORS.stroke,
+    borderColor: LANDING_COLORS.borderStrong,
   },
   programPillActive: {
-    opacity: 1,
-    backgroundColor: EXPERIENCE_COLORS.ink,
+    backgroundColor: LANDING_COLORS.text,
+    borderColor: LANDING_COLORS.text,
   },
   programPillText: {
-    color: EXPERIENCE_COLORS.ink,
+    color: LANDING_COLORS.text,
   },
   programPillTextActive: {
     color: LANDING_COLORS.textOnDark,
   },
   visualPanel: {
     flex: 1,
-    backgroundColor: EXPERIENCE_COLORS.glassStrong,
-    borderRadius: 30,
+    backgroundColor: LANDING_COLORS.surface,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: EXPERIENCE_COLORS.stroke,
+    borderColor: LANDING_COLORS.borderSoft,
     minHeight: 420,
     overflow: 'hidden',
   },

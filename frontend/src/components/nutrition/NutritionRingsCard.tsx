@@ -15,8 +15,8 @@
  *     as a second arc with an SVG drop-shadow filter
  */
 import { BookOpen, ArrowSquareOut } from 'phosphor-react-native';
-import React, { useEffect, useId, useMemo } from 'react';
-import { Platform, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import { LayoutChangeEvent, Platform, Pressable, StyleSheet, Text as RNText, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedProps,
@@ -42,12 +42,26 @@ const RING = {
 };
 
 // Geometry — three concentric rings, equal stroke, equal gap.
+// STROKE 20 (not 22) keeps the rings bold while widening the inner hole to
+// ~76px so the center calorie readout never collides with the innermost ring
+// even at 4-5 digit values (see CENTER_TEXT_MAX below).
 const SIZE = 220;
 const CENTER = SIZE / 2;
-const STROKE = 22;
+const STROKE = 20;
 const GAP = 6;
 const ANIM_DURATION = 1100;
 const ANIM_STAGGER = 140;
+
+// Max width (DIP) for the center readout — clamps the calorie number to the
+// inner-ring hole so adjustsFontSizeToFit shrinks long values to fit rather
+// than overflowing onto the chart.
+const CENTER_TEXT_MAX = 72;
+
+// Card width (incl. padding) at/above which rings + legend sit side-by-side
+// instead of stacking. Below this (phones, narrow tour cards) we stack.
+const ROW_BREAKPOINT = 600;
+// Rings render slightly larger in the roomier side-by-side layout.
+const RINGS_ROW_SIZE = 240;
 
 interface MacroData { current: number; target: number; }
 export interface NutritionRingsData {
@@ -171,6 +185,15 @@ export function NutritionRingsCard({ data, showFat = true, animated = true, onMa
   const filterPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const rings = useMemo(() => (showFat ? RINGS : RINGS.filter(r => r.key !== 'fat')), [showFat]);
 
+  // Responsive layout: measure the card's own width (works on web + native)
+  // and switch rings/legend from stacked → side-by-side once there's room.
+  const [cardWidth, setCardWidth] = useState(0);
+  const onCardLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w && Math.abs(w - cardWidth) > 1) setCardWidth(w);
+  };
+  const isRow = cardWidth >= ROW_BREAKPOINT;
+
   // Outer → inner radii so the largest ring sits on the outside.
   const radii = useMemo(() => {
     const outerRadius = (SIZE - STROKE) / 2;
@@ -187,9 +210,10 @@ export function NutritionRingsCard({ data, showFat = true, animated = true, onMa
   const calorieTarget = data.calories.target.toLocaleString();
 
   return (
-    <View style={styles.card}>
+    <View style={styles.card} onLayout={onCardLayout}>
+      <View style={[styles.body, isRow && styles.bodyRow]}>
       <View
-        style={styles.ringsContainer}
+        style={[styles.ringsContainer, isRow && styles.ringsContainerRow]}
         accessible
         accessibilityRole="summary"
         accessibilityLabel={`${calorieText} of ${calorieTarget} calories. ${rings.map(r => `${r.label} ${Math.round(pcts[r.key])} percent`).join('. ')}.`}
@@ -231,15 +255,17 @@ export function NutritionRingsCard({ data, showFat = true, animated = true, onMa
           importantForAccessibility="no-hide-descendants"
           accessibilityElementsHidden
         >
-          <RNText style={styles.calorieValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+          <RNText style={styles.calorieValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
             {calorieText}
           </RNText>
-          <RNText style={styles.calorieTarget} numberOfLines={1}>/ {calorieTarget} kcal</RNText>
+          <RNText style={styles.calorieTarget} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+            / {calorieTarget} kcal
+          </RNText>
         </View>
       </View>
 
       {/* Macro legend — coloured dot + label/value, replaces the old vertical bars */}
-      <View style={styles.legend}>
+      <View style={[styles.legend, isRow && styles.legendRow]}>
         {rings.map(r => {
           const d = r.key === 'fat' ? data.fat : data[r.key];
           const pct = Math.round(pcts[r.key]);
@@ -262,6 +288,7 @@ export function NutritionRingsCard({ data, showFat = true, animated = true, onMa
             </Pressable>
           );
         })}
+      </View>
       </View>
 
       <View style={styles.citationArea}>
@@ -301,11 +328,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  // Rings + legend wrapper. Stacks by default; becomes a centered two-column
+  // row on wide cards (see bodyRow) so the chart and macros sit side-by-side.
+  body: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  bodyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 52,
+  },
+
   ringsContainer: {
     width: '100%',
     maxWidth: SIZE,
     aspectRatio: 1,
     position: 'relative',
+  },
+  ringsContainerRow: {
+    width: RINGS_ROW_SIZE,
+    maxWidth: RINGS_ROW_SIZE,
   },
   centerOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -319,22 +363,27 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -1,
     lineHeight: 30,
-    maxWidth: SIZE * 0.5,
+    maxWidth: CENTER_TEXT_MAX,
     textAlign: 'center',
   },
   calorieTarget: {
     color: '#9CA3AF',
     fontSize: 12,
     fontWeight: '500',
-    maxWidth: SIZE * 0.5,
+    maxWidth: CENTER_TEXT_MAX,
     textAlign: 'center',
   },
 
   legend: {
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 300,
     marginTop: 18,
     gap: 8,
+  },
+  legendRow: {
+    width: 250,
+    maxWidth: 250,
+    marginTop: 0,
   },
   legendItem: {
     flexDirection: 'row',

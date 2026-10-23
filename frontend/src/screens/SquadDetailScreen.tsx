@@ -24,31 +24,35 @@ import { BentoCard } from '@/components/common/BentoCard';
 import SquadStreakHeader from '@/components/squads/SquadStreakHeader';
 import { Text } from '@/components/Text';
 import { squadsApi } from '@/services/squadsApi';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { BRAND_COLORS, spacing } from '@/utils';
 
 type Params = { SquadDetail: { squadId: string } };
 
 export function SquadDetailScreen() {
+  const userId = useAuthStore((s) => s.userInfo?.userId);
   const route = useRoute<RouteProp<Params, 'SquadDetail'>>();
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { squadId } = route.params;
 
   const detailQuery = useQuery({
-    queryKey: ['squads', 'detail', squadId],
+    queryKey: ['squads', userId, 'detail', squadId],
     queryFn: () => squadsApi.detail(squadId),
+    enabled: !!userId,
   });
 
   const leaderboardQuery = useQuery({
-    queryKey: ['squads', 'leaderboard', squadId],
+    queryKey: ['squads', userId, 'leaderboard', squadId],
     queryFn: () => squadsApi.leaderboard(squadId),
+    enabled: !!userId,
     refetchInterval: 5 * 60 * 1000, // refresh every 5 min while open (per AC-4)
   });
 
   const leaveMutation = useMutation({
     mutationFn: () => squadsApi.leave(squadId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['squads', 'list'] });
+      queryClient.invalidateQueries({ queryKey: ['squads', userId] });
       navigation.goBack();
     },
   });
@@ -78,6 +82,8 @@ export function SquadDetailScreen() {
       ],
     );
   }, [leaveMutation]);
+
+  if (!userId) return null;
 
   if (detailQuery.isLoading) {
     return (

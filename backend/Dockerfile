@@ -42,8 +42,12 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
 
-# JVM options for containerized environments (Cloud Run)
-# Use 512m heap + CDS/AppCDS for faster cold starts
-ENV JAVA_TOOL_OPTIONS="-Xmx512m -XX:+UseContainerSupport -XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+# JVM options for containerized environments (Cloud Run).
+# Size the heap to a PERCENTAGE of the container memory (not a fixed -Xmx512m), so the heap
+# grows with --memory and always leaves native headroom for AWT/ImageIO image buffers (which
+# allocate off-heap) + OkHttp + threads. A fixed 512m heap on a 512Mi container left zero
+# headroom and OOM-killed the instance under concurrent image load. TieredStopAtLevel=1 keeps
+# cold starts fast (we scale out across many instances rather than up).
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65.0 -XX:InitialRAMPercentage=40.0 -XX:+UseContainerSupport -XX:+TieredCompilation -XX:TieredStopAtLevel=1"
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

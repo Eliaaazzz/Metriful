@@ -25,6 +25,7 @@ export const getAppWebOrigin = (): string => {
 };
 
 export const APP_PAGE_PATHS = {
+  about: '/about.html',
   support: '/support.html',
   privacy: '/privacy-policy.html',
   terms: '/terms-of-service.html',

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { RecipeCard, RecipeSortOption, SavedRecipe, SavedWorkout, UploadRecipePayload, UploadWorkoutPayload, WorkoutCard, WorkoutSortOption } from '@/types';
 import {
@@ -131,6 +131,7 @@ export const useRecommendedWorkouts = (fitnessGoal?: string | null, userId?: str
     queryFn: () => getRecommendedWorkouts(fitnessGoal, userId),
     staleTime: 1000 * 60 * 10,
     enabled: !!userId,
+    placeholderData: keepPreviousData,
   });
 
 export const useRecommendedRecipes = (fitnessGoal?: string | null, userId?: string) =>
@@ -139,6 +140,7 @@ export const useRecommendedRecipes = (fitnessGoal?: string | null, userId?: stri
     queryFn: () => getRecommendedRecipes(fitnessGoal, userId),
     staleTime: 1000 * 60 * 10,
     enabled: !!userId,
+    placeholderData: keepPreviousData,
   });
 
 // Search hooks for keyword search
@@ -213,4 +215,22 @@ export const useRecipeById = (recipeId?: string) =>
     queryFn: () => (recipeId ? getRecipeById(recipeId) : Promise.resolve(null)),
     enabled: !!recipeId,
     staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+
+/**
+ * useRecipesByTag — Uber-Eats-style themed row hook.
+ * Piggybacks on the existing search endpoint; tags like "quick", "high protein",
+ * "trending healthy" are routed through full-text search server-side.
+ */
+export const useRecipesByTag = (tag: string, limit: number = 10) =>
+  useQuery<RecipeCard[], Error>({
+    queryKey: ['recipes', 'tag', tag, limit],
+    queryFn: async () => {
+      const all = await searchRecipes(tag);
+      return all.slice(0, limit);
+    },
+    enabled: !!tag,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 60,
+    placeholderData: keepPreviousData,
   });

@@ -28,9 +28,11 @@ import {
 } from '@env';
 import { Image } from 'expo-image';
 import { Text } from '@/components';
+import { trackEvent } from '@/services/analytics';
 import { api } from '@/services/apiClient';
 import { startBackendWarmup } from '@/services/backendWarmup';
 import { queryClient } from '@/services/queryClient';
+import { storeGoogleOAuthState } from '@/services/webGoogleRedirect';
 import { useAuthStore } from '@/stores';
 import { BRAND_COLORS, EXPERIENCE_COLORS, radii, spacing } from '@/utils';
 
@@ -260,7 +262,7 @@ export default function RegisterScreen() {
   const handleLoginSuccess = useCallback(async (data: {
     token: string; email: string; isNewUser?: boolean;
     user?: { userId: string; username: string; currentStreak: number; level: string; timeBucket: number };
-  }) => {
+  }, method: 'google' | 'apple') => {
     try {
       queryClient.clear();
       const inlineUserInfo = data.user ? {
@@ -271,6 +273,8 @@ export default function RegisterScreen() {
       await useAuthStore.getState().signIn(data.token, inlineUserInfo);
       const authState = useAuthStore.getState();
       if (!authState.isAuthenticated) throw new Error('Login succeeded but authentication state was not set.');
+
+      trackEvent(data.isNewUser ? 'sign_up' : 'login', { method });
 
       setIsLoading(false);
       const destination = data.isNewUser ? 'Onboarding' : (Platform.OS === 'web' ? 'Splash' : 'Main');
@@ -295,7 +299,7 @@ export default function RegisterScreen() {
         const data = await api.post<{ token: string; email: string; isNewUser?: boolean; user?: any }>('/api/v1/auth/login', {
           loginType: 'GOOGLE', idToken,
         }, { timeout: 60000 });
-        await handleLoginSuccess(data);
+        await handleLoginSuccess(data, 'google');
         return;
       } catch (err: any) {
         lastError = err;
@@ -321,7 +325,7 @@ export default function RegisterScreen() {
           ...(nonce ? { nonce } : {}),
           ...(authorizationCode ? { authorizationCode } : {}),
         }, { timeout: 60000 });
-        await handleLoginSuccess(data);
+        await handleLoginSuccess(data, 'apple');
         return;
       } catch (err: any) {
         lastError = err;
@@ -393,7 +397,7 @@ export default function RegisterScreen() {
     const search = new URLSearchParams(window.location.search);
     if (search.get('auth') !== 'google' || webGoogleHandoffStarted.current) return;
     webGoogleHandoffStarted.current = true;
-    sessionStorage.setItem('google_oauth_state', googleRequest.state ?? '');
+    storeGoogleOAuthState(googleRequest.state);
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash || ''}`);
     window.location.href = googleRequest.url;
   }, [googleRequest]);
@@ -437,7 +441,7 @@ export default function RegisterScreen() {
         window.location.href = `${canonicalWebOrigin}${window.location.pathname || '/'}?auth=google`;
         return;
       }
-      sessionStorage.setItem('google_oauth_state', googleRequest.state ?? '');
+      storeGoogleOAuthState(googleRequest.state);
       window.location.href = googleRequest.url;
       return;
     }
@@ -500,6 +504,7 @@ export default function RegisterScreen() {
       await useAuthStore.getState().signIn(authResult.token, {
         userId: '', email: authResult.email, username: '', currentStreak: 0, level: 'beginner', timeBucket: 0,
       });
+      trackEvent('sign_up', { method: 'password' });
       navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
