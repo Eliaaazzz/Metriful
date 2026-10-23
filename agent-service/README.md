@@ -115,9 +115,12 @@ data. Sleep intervals are clipped to the selected local day and unioned; weight 
 the latest sample that day. Sync is user-initiated. Nutrition export, background
 delivery, Health Connect and Watch apps are outside this version.
 
-The Windows checks cannot compile or exercise HealthKit. iOS compilation and device
-verification remain required before release. Update App Store privacy declarations
-to match the data flow when preparing that release.
+The [macOS Release simulator build](https://github.com/Eliaaazzz/Metriful/actions/runs/39896568243)
+passed on 23 October 2026, including the HealthKit module for arm64 and x86_64.
+The workflow publishes its logs, resolved Podfile.lock and a simulator app with the
+JavaScript bundle included. Device authorization and HealthKit reads still require
+verification on a supported iPhone. Update App Store privacy declarations to match
+the data flow when preparing a release.
 
 From `frontend`:
 
@@ -134,11 +137,11 @@ device build and an unsigned simulator build. EAS account login is required.
 `expo-dev-client` is also installed for the existing development profile.
 
 On macOS, run `bash scripts/build-health-ios.sh` from `frontend` to install pods and
-compile the complete simulator target without distribution signing. The manual
+compile the complete Release simulator target without distribution signing. The manual
 `HealthKit iOS native compilation` GitHub workflow runs the same script. Pushes to
 an explicitly chosen `codex/health-native-*` verification branch also trigger it.
-The existing checked-in Podfile.lock must be resolved by CocoaPods on that Mac;
-Windows cannot generate or verify an updated native dependency resolution.
+The checked-in Podfile.lock is the exact dependency resolution from that successful
+macOS build. The simulator archive is written to `work/health-ios` and uploaded by CI.
 
 Native sources are deliberately checked in. Expo Doctor reports that app.json
 native fields will not automatically sync for this setup; `ios:check` verifies the
