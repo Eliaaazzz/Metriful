@@ -358,7 +358,7 @@ See `cloudbuild.yaml` and `firebase.json` for the production deploy contracts.
 | Android (Google Play) | 🚧 In review |
 | RevenueCat subscription gating | 🚧 In progress |
 | AI Coach with LangGraph tools | Implemented locally; service configuration required |
-| Apple Health daily read integration | Implemented; macOS Release simulator build passed, iPhone verification pending |
+| Apple Health daily read integration | Implemented; macOS Release simulator build/startup passed, iPhone verification pending |
 | Android Health Connect integration | Planned |
 | Apple Watch companion app | 📋 Planned |
 

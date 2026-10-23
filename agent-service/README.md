@@ -92,6 +92,12 @@ The integration run found and fixed two defects: Google's minimum request deadli
 is ten seconds, and Java's default RestClient mapper encoded LocalDate as an array.
 The model deadline is now twelve seconds and gateway dates use ISO-8601 strings.
 
+The [full backend CI](https://github.com/Eliaaazzz/Metriful/actions/runs/39899556774)
+also passed against real PostgreSQL/pgvector containers: 450 passed and 38 skipped
+in the default suite. The four gated Coach HTTP cases passed in their separate
+integration job. Python has 15 passing tests and the complete frontend suite has
+158 passing tests. Skipped legacy tests remain visible in the verification report.
+
 Pytest uses scripted model responses while running the actual LangGraph and FastAPI
 paths. It verifies tool routing, bounds, permission stripping, validation and failure
 sanitization. The live evaluation uses only synthetic data, invokes your configured
@@ -115,10 +121,12 @@ data. Sleep intervals are clipped to the selected local day and unioned; weight 
 the latest sample that day. Sync is user-initiated. Nutrition export, background
 delivery, Health Connect and Watch apps are outside this version.
 
-The [macOS Release simulator build](https://github.com/Eliaaazzz/Metriful/actions/runs/39896568243)
+The [macOS Release simulator build](https://github.com/Eliaaazzz/Metriful/actions/runs/39899919390)
 passed on 23 October 2026, including the HealthKit module for arm64 and x86_64.
 The workflow publishes its logs, resolved Podfile.lock and a simulator app with the
-JavaScript bundle included. Device authorization and HealthKit reads still require
+JavaScript bundle included. Installation, launch, process survival and Keychain
+initialization passed; the screenshot shows the unauthenticated landing page.
+Device authorization and HealthKit reads still require
 verification on a supported iPhone. Update App Store privacy declarations to match
 the data flow when preparing a release.
 
@@ -142,6 +150,16 @@ compile the complete Release simulator target without distribution signing. The 
 an explicitly chosen `codex/health-native-*` verification branch also trigger it.
 The checked-in Podfile.lock is the exact dependency resolution from that successful
 macOS build. The simulator archive is written to `work/health-ios` and uploaded by CI.
+
+The build helper temporarily uses simulator-only HealthKit and Keychain entitlements,
+lets Xcode embed and sign them, and restores the device entitlements on exit. This
+requires no distribution certificate. Manually signing an unsigned executable with
+device-style entitlements did not produce a launchable simulator app. The workflow
+now checks startup and missing-entitlement Keychain errors on its actual output.
+See [Apple's Keychain entitlement guidance](https://developer.apple.com/forums/thread/114456).
+To repeat startup checks for an existing signed archive, supply its workflow run ID
+as `compiled_run_id` in the manual native workflow. The Coach workflow's optional
+`full_backend` input runs the complete backend suite with containers.
 
 Native sources are deliberately checked in. Expo Doctor reports that app.json
 native fields will not automatically sync for this setup; `ios:check` verifies the
