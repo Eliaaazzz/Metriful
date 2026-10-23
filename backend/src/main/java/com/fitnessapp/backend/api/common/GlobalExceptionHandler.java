@@ -23,6 +23,7 @@ import com.fitnessapp.backend.embedding.EmbeddingGenerationException;
 import com.fitnessapp.backend.auth.AuthenticationException;
 import com.fitnessapp.backend.nutrition.exception.FoodRecognitionException;
 import com.fitnessapp.backend.recommendation.exception.RecommendationException;
+import com.fitnessapp.backend.squad.SquadException;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -72,6 +73,20 @@ public class GlobalExceptionHandler {
                 "Failed to process content: " + ex.getMessage(),
                 request.getRequestURI()
         );
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(response);
+    }
+
+    // ========== Squad Exceptions ==========
+
+    @ExceptionHandler(SquadException.class)
+    public ResponseEntity<ApiEnvelope<Void>> handleSquadException(
+            SquadException ex,
+            HttpServletRequest request
+    ) {
+        ErrorCode errorCode = ex.getErrorCode();
+        log.warn("Squad error [{}]: {}", errorCode.getCode(), ex.getMessage());
+
+        ApiEnvelope<Void> response = ApiEnvelope.error(errorCode, ex.getMessage(), request.getRequestURI());
         return ResponseEntity.status(errorCode.getHttpStatus()).body(response);
     }
 

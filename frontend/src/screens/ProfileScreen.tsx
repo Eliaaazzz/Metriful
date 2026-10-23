@@ -1622,6 +1622,12 @@ const ProfileScreen = () => {
             'Analyze your nutrition trends',
             () => navigation.navigate('WeeklyInsights' as any)
           )}
+          {renderMenuItem(
+            'account-group-outline',
+            'Squads',
+            'Log alongside friends and build a shared streak',
+            () => navigation.navigate('Squads' as any)
+          )}
         </Animated.View>
 
         <Animated.View entering={staggerEnter(3)} style={styles.menuSection}>

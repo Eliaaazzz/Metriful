@@ -138,6 +138,24 @@ public interface MealLogRepository extends JpaRepository<MealLog, Long> {
     OffsetDateTime getLastLog();
   }
   
+  // ========== Squads / leaderboard helpers ==========
+
+  long countByUserIdAndConsumedAtAfter(UUID userId, OffsetDateTime since);
+
+  @Query("SELECT COUNT(DISTINCT FUNCTION('DATE', m.consumedAt)) FROM MealLog m WHERE m.userId = :userId AND m.consumedAt >= :since")
+  long countDistinctDaysByUserSince(@Param("userId") UUID userId, @Param("since") OffsetDateTime since);
+
+  /** Returns true if at least one meal log exists for {@code userId} in the half-open window. */
+  @Query("""
+      SELECT COUNT(m) > 0 FROM MealLog m
+       WHERE m.userId = :userId
+         AND m.consumedAt >= :start
+         AND m.consumedAt <  :end
+      """)
+  boolean existsLogInRange(@Param("userId") UUID userId,
+                           @Param("start") OffsetDateTime start,
+                           @Param("end")   OffsetDateTime end);
+
   interface DailyNutritionSummary {
     LocalDate getDate();
     Long getMealCount();

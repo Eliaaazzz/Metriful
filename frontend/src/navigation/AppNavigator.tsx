@@ -49,6 +49,8 @@ import { HelpScreen } from '@/screens/HelpScreen';
 import { ManageAccountScreen } from '@/screens/ManageAccountScreen';
 import { WeeklyInsightsScreen } from '@/screens/WeeklyInsightsScreen';
 import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
+import SquadsScreen from '@/screens/SquadsScreen';
+import SquadDetailScreen from '@/screens/SquadDetailScreen';
 import { recordInitialScreen, trackScreenView } from '@/services/analytics';
 import { BRAND_COLORS, TAB_ICON_SIZE, useResponsive, useSidebarVisible } from '@/utils';
 
@@ -79,6 +81,8 @@ const SafeBuildPlanScreen = withErrorBoundary(BuildPlanScreen, 'BuildPlan');
 const SafeHelpScreen = withErrorBoundary(HelpScreen, 'Help');
 const SafeManageAccountScreen = withErrorBoundary(ManageAccountScreen, 'ManageAccount');
 const SafeOnboardingScreen = withErrorBoundary(OnboardingScreen, 'Onboarding');
+const SafeSquadsScreen = withErrorBoundary(SquadsScreen, 'Squads');
+const SafeSquadDetailScreen = withErrorBoundary(SquadDetailScreen, 'SquadDetail');
 
 const Tab = createBottomTabNavigator();
 // Use createStackNavigator instead of createNativeStackNavigator for Web compatibility
@@ -680,6 +684,16 @@ export const AppNavigator = () => {
         <Stack.Screen
           name="BuildPlan"
           component={SafeBuildPlanScreen}
+          options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+        />
+        <Stack.Screen
+          name="Squads"
+          component={SafeSquadsScreen}
+          options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+        />
+        <Stack.Screen
+          name="SquadDetail"
+          component={SafeSquadDetailScreen}
           options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
         />
       </Stack.Navigator>

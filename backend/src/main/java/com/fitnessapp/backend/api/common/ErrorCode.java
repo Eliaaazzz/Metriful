@@ -30,6 +30,16 @@ public enum ErrorCode {
     MEAL_NOT_FOUND(2002, "Meal not found", HttpStatus.NOT_FOUND),
     PROFILE_NOT_FOUND(2003, "User profile not found", HttpStatus.NOT_FOUND),
 
+    // Squad errors (2010-2019) — see com.fitnessapp.backend.squad
+    SQUAD_NOT_FOUND(2010, "Squad not found", HttpStatus.NOT_FOUND),
+    SQUAD_FULL(2011, "Squad has reached the 10-member limit", HttpStatus.CONFLICT),
+    SQUAD_LIMIT_REACHED(2012, "You are already in the maximum number of squads", HttpStatus.CONFLICT),
+    SQUAD_INVITE_CODE_INVALID(2013, "Invite code is invalid or expired", HttpStatus.NOT_FOUND),
+    SQUAD_ACCESS_DENIED(2014, "You are not a member of this squad", HttpStatus.FORBIDDEN),
+    SQUAD_ALREADY_MEMBER(2015, "You are already a member of this squad", HttpStatus.CONFLICT),
+    KUDOS_FORBIDDEN(2016, "You cannot give kudos to this meal", HttpStatus.FORBIDDEN),
+    KUDOS_SELF_FORBIDDEN(2017, "You cannot give kudos to your own meal", HttpStatus.BAD_REQUEST),
+
     // AI/Vision errors (3xxx)
     AI_SERVICE_UNAVAILABLE(3001, "AI service temporarily unavailable", HttpStatus.SERVICE_UNAVAILABLE),
     AI_RECOGNITION_FAILED(3002, "Food recognition failed", HttpStatus.BAD_REQUEST),
